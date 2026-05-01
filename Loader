@@ -256,9 +256,9 @@ end;
 function Library.new(config)
 	config = Config(config,{
 		Title = "VaenHub",
-		Description = "VaenHub Official",
+		Description = "https://discord.gg/2hTyPSxN",
 		Keybind = Enum.KeyCode.LeftControl,
-		Logo = "http://www.roblox.com/asset/?id=18810965406",
+		Logo = "http://www.roblox.com/asset/?id=105331688956210",
 		Size = UDim2.new(0.100000001, 445, 0.100000001, 315)
 	});
 
@@ -431,7 +431,7 @@ function Library.new(config)
 	ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global;
 	ScreenGui.ResetOnSpawn = false;
 	ScreenGui.IgnoreGuiInset = true;
-	ScreenGui.Name = "RobloxGameGui";
+	ScreenGui.Name = "VaenHubGui";
 
 	MainFrame.Name = "MainFrame"
 	MainFrame.Parent = ScreenGui
@@ -2480,7 +2480,7 @@ end;
 
 Library.NewAuth = function(conf)
 	conf = Config(conf,{
-		Title = "VaenHub $ KEY SYSTEM",
+		Title = "Vaen $ KEY SYSTEM",
 		GetKey = function() return 'https://example.com' end,
 		Auth = function(key) if key == '1 or 1' then return key; end; end,
 		Freeze = false,
@@ -3085,7 +3085,7 @@ function Library:Console()
 	konsole_title.Position = UDim2.new(0, 0, 0.0161176082, 0)
 	konsole_title.Size = UDim2.new(1, 0, 0.0380379669, 0)
 	konsole_title.Font = Enum.Font.SourceSansBold
-	konsole_title.Text = "~ : neu -- Konsole"
+	konsole_title.Text = "~ : vaen -- Konsole"
 	konsole_title.TextColor3 = Color3.fromRGB(255, 255, 255)
 	konsole_title.TextScaled = true
 	konsole_title.TextSize = 14.000
@@ -3192,7 +3192,7 @@ function Library:Console()
 		StartK.Size = UDim2.new(0.177329257, 0, 1, 0)
 		StartK.ZIndex = 6
 		StartK.Font = Enum.Font.SourceSans
-		StartK.Text = "[neuronx@rubuntu ~]$"
+		StartK.Text = "[vaen@rubuntu ~]$"
 		StartK.TextColor3 = Color3.fromRGB(255, 255, 255)
 		StartK.TextScaled = true
 		StartK.TextSize = 14.000
@@ -3248,11 +3248,11 @@ function Library:Console()
 			neofetch = function()
 				local default = 
 [[
-						<font color="rgb(255,125,0)">neuron@rubuntu</font>
+						<font color="rgb(255,125,0)">vaen@rubuntu</font>
 						<font color="rgb(255,125,0)">----------------------------------</font>
-						<font color="rgb(255,125,0)">Script</font>: Neuron X
+						<font color="rgb(255,125,0)">Script</font>: VaenHub
 						<font color="rgb(255,125,0)">Developers</font>: ttjy , catsus , q.r2s
-						<font color="rgb(255,125,0)">Discord</font>: https://discord.gg/HkRUtyTbk2
+						<font color="rgb(255,125,0)">Discord</font>: https://discord.gg/2hTyPSxN
 	<font color="rgb(255,125,0)">no logo</font>	<font color="rgb(255,125,0)">CPU1</font>: Intel Core I9 15900K (arm)
 						<font color="rgb(255,125,0)">CPU2</font>: Snapdragon 8 Gen 4 Super Ultra Gaming Edition (arm)
 						<font color="rgb(255,125,0)">GPU1</font>: Nvidia RTX 9080 Ti
@@ -3454,6 +3454,6 @@ function Library:Console()
 	return overview;
 end;
 
-print('[ OK ]: Fetch VaenHub Library')
+print('[ OK ]: Fetch Vaen Library')
 
-return table.freeze(Library)
+return table.freeze(Library);
