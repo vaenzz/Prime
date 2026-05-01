@@ -258,7 +258,7 @@ function Library.new(config)
 		Title = "VaenHub",
 		Description = "https://discord.gg/2hTyPSxN",
 		Keybind = Enum.KeyCode.LeftControl,
-		Logo = "http://www.roblox.com/asset/?id=105331688956210",
+		Logo = "http://www.roblox.com/asset/?id=86796238400891",
 		Size = UDim2.new(0.100000001, 445, 0.100000001, 315)
 	});
 
