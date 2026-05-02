@@ -5,6 +5,56 @@ local Input = game:GetService('UserInputService');
 local TextServ = game:GetService('TextService');
 local LocalPlayer = game:GetService('Players').LocalPlayer;
 local CoreGui = (gethui and gethui()) or game:FindFirstChild('CoreGui') or LocalPlayer.PlayerGui;
+-- [[ ANTI-DUPLICATE CLEANUP ]] --
+local Lighting = game:GetService('Lighting');
+
+-- Disconnect old loops if library was loaded before
+if _G.VaenLibLoaded then
+	_G.VaenLibLoaded = false;
+	task.wait(0.15)
+end
+_G.VaenLibLoaded = true;
+
+-- Cleanup old GUIs and orphaned blur parts
+local function VaenCleanup()
+	-- Remove old ScreenGuis (main UI + notifications)
+	for _, gui in pairs(CoreGui:GetChildren()) do
+		if gui:IsA("ScreenGui") then
+			if gui.Name == "VaenHubGui" then
+				pcall(function() gui:Destroy() end)
+			elseif gui:FindFirstChild("Frame") then
+				local f = gui.Frame
+				if f:FindFirstChildOfClass("UIListLayout") and f.Size == UDim2.new(0.400000006, 0, 0.400000006, 0) then
+					pcall(function() gui:Destroy() end)
+				end
+			end
+		end
+	end
+	
+	-- Remove orphaned glass parts (the grey squares!)
+	for _, obj in pairs(workspace:GetChildren()) do
+		if obj:IsA("Part") and obj.Material == Enum.Material.Glass and obj.Reflectance == 1 then
+			if obj.Size.Magnitude < 0.05 then
+				pcall(function() obj:Destroy() end)
+			end
+		end
+	end
+	
+	-- Remove orphaned DepthOfFieldEffects
+	for _, obj in pairs(Lighting:GetChildren()) do
+		if obj:IsA("DepthOfFieldEffect") and obj.FarIntensity == 1 and obj.InFocusRadius == 500 then
+			pcall(function() obj:Destroy() end)
+		end
+	end
+	
+	-- Unbind old render step
+	pcall(function()
+		game:GetService('RunService'):UnbindFromRenderStep('__LIBRARY__')
+	end)
+end
+
+VaenCleanup();
+task.wait(0.1)
 local Icons = (function()
 	local p,c = pcall(function()
 		local Http = game:HttpGetAsync('https://raw.githubusercontent.com/evoincorp/lucideblox/master/src/modules/util/icons.json');
@@ -1344,7 +1394,7 @@ function Library.new(config)
 			Twen:Create(Header,TweenInfo2,{BackgroundTransparency = 0.9}):Play();
 
 			UIAspectRatioConstraint.Parent = Header
-			UIAspectRatioConstraint.AspectRatio = 8.000
+			UIAspectRatioConstraint.AspectRatio = 7.000
 			UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 			UICorner_2.CornerRadius = UDim.new(0, 3)
@@ -1465,7 +1515,7 @@ function Library.new(config)
 				Twen:Create(FunctionToggle,TweenInfo1,{BackgroundTransparency = 0.8}):Play();
 
 				UIAspectRatioConstraint.Parent = FunctionToggle
-				UIAspectRatioConstraint.AspectRatio = 8.000
+				UIAspectRatioConstraint.AspectRatio = 6.2000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -1606,7 +1656,7 @@ function Library.new(config)
 				FunctionTitle.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionTitle
-				UIAspectRatioConstraint.AspectRatio = 8.000
+				UIAspectRatioConstraint.AspectRatio = 7.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -1679,7 +1729,7 @@ function Library.new(config)
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				Twen:Create(UIAspectRatioConstraint,TweenInfo1,{
-					AspectRatio = 7.65
+					AspectRatio = 6.500
 				}):Play();
 
 				UICorner.CornerRadius = UDim.new(0, 2)
@@ -1803,7 +1853,7 @@ function Library.new(config)
 				FunctionKeybind.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionKeybind
-				UIAspectRatioConstraint.AspectRatio = 8.000
+				UIAspectRatioConstraint.AspectRatio = 7.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -1978,7 +2028,7 @@ function Library.new(config)
 				FunctionSlider.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionSlider
-				UIAspectRatioConstraint.AspectRatio = 6.000
+				UIAspectRatioConstraint.AspectRatio = 5.200
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -2149,7 +2199,7 @@ function Library.new(config)
 				FunctionDropdown.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionDropdown
-				UIAspectRatioConstraint.AspectRatio = 5.000
+				UIAspectRatioConstraint.AspectRatio = 4.500
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -3453,6 +3503,13 @@ function Library:Console()
 
 	return overview;
 end;
+
+-- [[ UNLOAD FUNCTION ]] --
+function Library:Unload()
+	_G.VaenLibLoaded = false;
+	task.wait(0.1)
+	VaenCleanup();
+end
 
 print('[ OK ]: Fetch Vaen Library')
 
