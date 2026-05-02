@@ -8,16 +8,13 @@ local CoreGui = (gethui and gethui()) or game:FindFirstChild('CoreGui') or Local
 -- [[ ANTI-DUPLICATE CLEANUP ]] --
 local Lighting = game:GetService('Lighting');
 
--- Disconnect old loops if library was loaded before
 if _G.VaenLibLoaded then
 	_G.VaenLibLoaded = false;
 	task.wait(0.15)
 end
 _G.VaenLibLoaded = true;
 
--- Cleanup old GUIs and orphaned blur parts
 local function VaenCleanup()
-	-- Remove old ScreenGuis (main UI + notifications)
 	for _, gui in pairs(CoreGui:GetChildren()) do
 		if gui:IsA("ScreenGui") then
 			if gui.Name == "VaenHubGui" then
@@ -31,7 +28,6 @@ local function VaenCleanup()
 		end
 	end
 	
-	-- Remove orphaned glass parts (the grey squares!)
 	for _, obj in pairs(workspace:GetChildren()) do
 		if obj:IsA("Part") and obj.Material == Enum.Material.Glass and obj.Reflectance == 1 then
 			if obj.Size.Magnitude < 0.05 then
@@ -40,14 +36,12 @@ local function VaenCleanup()
 		end
 	end
 	
-	-- Remove orphaned DepthOfFieldEffects
 	for _, obj in pairs(Lighting:GetChildren()) do
 		if obj:IsA("DepthOfFieldEffect") and obj.FarIntensity == 1 and obj.InFocusRadius == 500 then
 			pcall(function() obj:Destroy() end)
 		end
 	end
 	
-	-- Unbind old render step
 	pcall(function()
 		game:GetService('RunService'):UnbindFromRenderStep('__LIBRARY__')
 	end)
@@ -55,6 +49,7 @@ end
 
 VaenCleanup();
 task.wait(0.1)
+
 local Icons = (function()
 	local p,c = pcall(function()
 		local Http = game:HttpGetAsync('https://raw.githubusercontent.com/evoincorp/lucideblox/master/src/modules/util/icons.json');
@@ -309,7 +304,7 @@ function Library.new(config)
 		Description = "https://discord.gg/2hTyPSxN",
 		Keybind = Enum.KeyCode.LeftControl,
 		Logo = "http://www.roblox.com/asset/?id=86796238400891",
-		Size = UDim2.new(0.100000001, 445, 0.100000001, 315)
+		Size = UDim2.new(0.100000001, 580, 0.100000001, 410)
 	});
 
 	local TweenInfo1 = TweenInfo.new(1,Enum.EasingStyle.Quint,Enum.EasingDirection.InOut);
@@ -564,8 +559,9 @@ function Library.new(config)
 	Title.BorderSizePixel = 0
 	Title.Position = UDim2.new(0.327570528, 0, 0.0126646794, 0)
 	Title.Size = UDim2.new(0.671064615, 0, 0.0518743545, 0)
-	Title.Font = Enum.Font.GothamBold
-	Title.Text = config.Title
+    Title.Font = Enum.Font.BuilderSansBold
+    Title.Text = config.Title
+    Title.RichText = true
 	Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 	Title.TextScaled = true
 	Title.TextSize = 14.000
@@ -1394,7 +1390,7 @@ function Library.new(config)
 			Twen:Create(Header,TweenInfo2,{BackgroundTransparency = 0.9}):Play();
 
 			UIAspectRatioConstraint.Parent = Header
-			UIAspectRatioConstraint.AspectRatio = 7.000
+			UIAspectRatioConstraint.AspectRatio = 8.000
 			UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 			UICorner_2.CornerRadius = UDim.new(0, 3)
@@ -1515,7 +1511,7 @@ function Library.new(config)
 				Twen:Create(FunctionToggle,TweenInfo1,{BackgroundTransparency = 0.8}):Play();
 
 				UIAspectRatioConstraint.Parent = FunctionToggle
-				UIAspectRatioConstraint.AspectRatio = 6.2000
+				UIAspectRatioConstraint.AspectRatio = 8.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -1656,7 +1652,7 @@ function Library.new(config)
 				FunctionTitle.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionTitle
-				UIAspectRatioConstraint.AspectRatio = 7.000
+				UIAspectRatioConstraint.AspectRatio = 8.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -1729,7 +1725,7 @@ function Library.new(config)
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				Twen:Create(UIAspectRatioConstraint,TweenInfo1,{
-					AspectRatio = 6.500
+					AspectRatio = 7.65
 				}):Play();
 
 				UICorner.CornerRadius = UDim.new(0, 2)
@@ -1853,7 +1849,7 @@ function Library.new(config)
 				FunctionKeybind.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionKeybind
-				UIAspectRatioConstraint.AspectRatio = 7.000
+				UIAspectRatioConstraint.AspectRatio = 8.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -2028,7 +2024,7 @@ function Library.new(config)
 				FunctionSlider.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionSlider
-				UIAspectRatioConstraint.AspectRatio = 5.200
+				UIAspectRatioConstraint.AspectRatio = 6.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
@@ -2199,7 +2195,7 @@ function Library.new(config)
 				FunctionDropdown.ZIndex = 17
 
 				UIAspectRatioConstraint.Parent = FunctionDropdown
-				UIAspectRatioConstraint.AspectRatio = 4.500
+				UIAspectRatioConstraint.AspectRatio = 5.000
 				UIAspectRatioConstraint.AspectType = Enum.AspectType.ScaleWithParentSize
 
 				TextInt.Name = "TextInt"
