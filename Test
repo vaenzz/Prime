@@ -3,7 +3,7 @@
     Pure black + electric blue aesthetic. Rayfield-compatible API.
 
     Usage:
-        local Phantom = loadstring(game:HttpGet("YOUR_URL"))()
+        local Phantom = loadstring(game:HttpGet("https://raw.githubusercontent.com/vaenzz/phantom/main/source.lua"))()
         local Window = Phantom:CreateWindow({
             Name = "My Hub",
             LoadingSubtitle = "by you",
@@ -24,7 +24,6 @@ local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
-
 local LocalPlayer = Players.LocalPlayer
 
 -- Theme: pure black + electric blue --------------------------------------
@@ -380,6 +379,34 @@ function Phantom:CreateWindow(settings)
     })
     parentGui(ScreenGui)
 
+    -- Draggable toggle button (like a minimized window) -----------------
+    local ToggleButton = new("ImageButton", {
+        Name = "ToggleButton",
+        BackgroundColor3 = Theme.BgSoft,
+        BackgroundTransparency = 0,
+        Size = UDim2.new(0, 48, 0, 48),
+        Position = UDim2.new(0, 20, 0, 20),
+        Image = "rbxassetid://5028857084", -- 9-slice glow
+        ImageTransparency = 0.6,
+        ScaleType = Enum.ScaleType.Slice,
+        SliceCenter = Rect.new(24, 24, 276, 276),
+        Visible = false,
+        Parent = ScreenGui,
+    })
+    corner(ToggleButton, 24) -- round corner
+    local toggleIcon = new("ImageLabel", {
+        Name = "Icon",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, -12, 1, -12),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Image = "rbxassetid://7733993211", -- same as the home icon used in the original Phantom UI
+        ImageColor3 = Theme.Accent,
+        Parent = ToggleButton,
+    })
+    corner(toggleIcon, 20)
+    makeDraggable(ToggleButton, ToggleButton)
+
     local Main = new("Frame", {
         Name = "Main", BackgroundColor3 = Theme.Bg,
         Size = UDim2.new(0, 740, 0, 500),
@@ -421,7 +448,7 @@ function Phantom:CreateWindow(settings)
     gradient(Logo, { ColorSequenceKeypoint.new(0, Theme.AccentBright), ColorSequenceKeypoint.new(1, Theme.AccentDim) }, 135)
     glow(Logo, Theme.Accent, 0.4)
 
-    new("TextLabel", {
+    local TitleLabel = new("TextLabel", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 54, 0, 0), Size = UDim2.new(0, 200, 1, 0),
         Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = Theme.Text,
@@ -543,6 +570,25 @@ function Phantom:CreateWindow(settings)
     })
     tween(mainStroke, Anim.Smooth, { Transparency = 0 })
 
+    -- Handle the toggle button visibility and window visibility state
+    local windowVisible = true
+    local function setWindowVisible(visible)
+        windowVisible = visible
+        if visible then
+            Main.Visible = true
+            ToggleButton.Visible = false
+            tween(Main, Anim.Spring, {
+                Size = UDim2.new(0, 740, 0, 500),
+                Position = UDim2.new(0.5, -370, 0.5, -250),
+            })
+            tween(mainStroke, Anim.Smooth, { Transparency = 0 })
+        else
+            Main.Visible = false
+            ToggleButton.Visible = true
+            ToggleButton.Tween, TweenService:Create(ToggleButton, Anim.Spring, { BackgroundColor3 = Theme.BgSoft })
+        end
+    end
+
     -- Search filtering
     local allElements = {}
     track(SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
@@ -575,19 +621,15 @@ function Phantom:CreateWindow(settings)
     -- Min / close
     local minimized = false
     track(MinBtn.MouseButton1Click:Connect(function()
-        minimized = not minimized
-        if minimized then
-            tween(Main, Anim.Smooth, { Size = UDim2.new(0, 740, 0, 56) })
-            task.delay(0.15, function() Body.Visible = false; Footer.Visible = false end)
-        else
-            Body.Visible = true; Footer.Visible = true
-            tween(Main, Anim.Spring, { Size = UDim2.new(0, 740, 0, 500) })
-        end
+        setWindowVisible(false)
     end))
     track(CloseBtn.MouseButton1Click:Connect(function()
         tween(Main, Anim.Smooth, { Size = UDim2.new(0, 0, 0, 0), BackgroundTransparency = 1 })
         tween(mainStroke, Anim.Fast, { Transparency = 1 })
         task.wait(0.3); ScreenGui:Destroy()
+    end))
+    track(ToggleButton.MouseButton1Click:Connect(function()
+        setWindowVisible(true)
     end))
 
     -- Configuration ------------------------------------------------------
