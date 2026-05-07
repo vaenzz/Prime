@@ -1,9 +1,15 @@
 --[[
-    Phantom UI Library
-    Black + Electric Blue. Smooth, premium, mobile + desktop ready.
-    Rayfield-compatible API.
+    Phantom UI Library v1.3
+    Black + Electric Blue. Smooth, premium, mobile + desktop.
+    Rayfield-compatible API with extras.
 
+    QUICK USE:
         local Phantom = loadstring(game:HttpGet("YOUR_RAW_URL"))()
+        -- (optional) set your custom icons:
+        Phantom.Config.LogoImage      = "rbxassetid://YOUR_ID"
+        Phantom.Config.FloatIconImage = "rbxassetid://YOUR_ID"
+        Phantom.Config.TooltipsEnabled = true
+
         local Window = Phantom:CreateWindow({
             Name = "Phantom",
             LoadingTitle = "Phantom",
@@ -13,13 +19,42 @@
         })
         local Tab = Window:CreateTab("Main")
         Tab:CreateSection("Section")
-        Tab:CreateButton({ Name = "Click", Callback = function() print("hi") end })
+        Tab:CreateButton({
+            Name = "Click",
+            Tooltip = "Does the thing",
+            Callback = function() print("hi") end,
+        })
 ]]
 
 local Phantom = {}
 Phantom.Flags = {}
-Phantom.Version = "1.2"
+Phantom.Version = "1.3"
 
+------------------------------------------------------------------------------
+-- USER CONFIG (paste your asset IDs here)
+------------------------------------------------------------------------------
+Phantom.Config = {
+    -- Logo shown in the top-left of the window (next to "Phantom" text).
+    -- If nil, falls back to a colored square with LogoText inside.
+    LogoImage = nil,                 -- e.g. "rbxassetid://1234567890"
+    LogoText  = "P",                 -- fallback letter when LogoImage is nil
+
+    -- Icon shown when the window is minimized. Click it to restore.
+    -- If nil, falls back to LogoText on accent gradient.
+    FloatIconImage = nil,            -- e.g. "rbxassetid://1234567890"
+
+    -- Show a tooltip near the cursor when hovering over elements
+    -- that have a `Tooltip` field set in their config.
+    TooltipsEnabled = false,
+
+    -- 0 = instant follow (no smoothing). Higher = laggier/smoother drag.
+    -- 0.05–0.15 feels nice. Set 0 to disable.
+    DragSmoothness = 0,
+}
+
+------------------------------------------------------------------------------
+-- SERVICES
+------------------------------------------------------------------------------
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local RunService       = game:GetService("RunService")
@@ -33,62 +68,70 @@ local LocalPlayer      = Players.LocalPlayer
 ------------------------------------------------------------------------------
 Phantom.Themes = {
     Default = { -- Electric Blue
-        Bg = Color3.fromRGB(8, 10, 14),
-        BgGradient1 = Color3.fromRGB(10, 14, 22),
-        BgGradient2 = Color3.fromRGB(6, 8, 12),
-        Panel = Color3.fromRGB(14, 18, 26),
-        Element = Color3.fromRGB(18, 24, 34),
-        ElementHover = Color3.fromRGB(26, 34, 48),
+        Bg = Color3.fromRGB(10, 12, 16),
+        BgGradient1 = Color3.fromRGB(28, 32, 42),    -- top-ish (lighter)
+        BgGradient2 = Color3.fromRGB(8, 10, 14),     -- bottom (darker)
+        Panel = Color3.fromRGB(18, 22, 30),
+        PanelGradient1 = Color3.fromRGB(24, 30, 42),
+        PanelGradient2 = Color3.fromRGB(14, 18, 26),
+        Element = Color3.fromRGB(22, 28, 40),
+        ElementHover = Color3.fromRGB(32, 42, 58),
         Accent = Color3.fromRGB(0, 170, 255),
         AccentBright = Color3.fromRGB(80, 200, 255),
         AccentDim = Color3.fromRGB(0, 120, 200),
         AccentGlow = Color3.fromRGB(0, 200, 255),
         Text = Color3.fromRGB(235, 240, 248),
-        TextDim = Color3.fromRGB(150, 160, 175),
+        TextDim = Color3.fromRGB(155, 165, 180),
         TextDark = Color3.fromRGB(95, 105, 120),
         TextBright = Color3.fromRGB(255, 255, 255),
-        Stroke = Color3.fromRGB(28, 36, 50),
-        StrokeStrong = Color3.fromRGB(45, 58, 78),
+        Stroke = Color3.fromRGB(36, 46, 64),
+        StrokeStrong = Color3.fromRGB(58, 72, 96),
         StrokeAccent = Color3.fromRGB(0, 140, 220),
         Success = Color3.fromRGB(60, 220, 130),
         Warning = Color3.fromRGB(255, 180, 50),
         Error = Color3.fromRGB(220, 50, 60),
     },
     Purple = {
-        Bg = Color3.fromRGB(12, 8, 18), BgGradient1 = Color3.fromRGB(18, 12, 28),
-        BgGradient2 = Color3.fromRGB(8, 6, 14), Panel = Color3.fromRGB(20, 14, 32),
-        Element = Color3.fromRGB(26, 18, 40), ElementHover = Color3.fromRGB(34, 24, 52),
+        Bg = Color3.fromRGB(14, 10, 20),
+        BgGradient1 = Color3.fromRGB(34, 22, 50), BgGradient2 = Color3.fromRGB(10, 6, 16),
+        Panel = Color3.fromRGB(24, 16, 36),
+        PanelGradient1 = Color3.fromRGB(30, 22, 48), PanelGradient2 = Color3.fromRGB(16, 10, 26),
+        Element = Color3.fromRGB(30, 22, 46), ElementHover = Color3.fromRGB(42, 30, 64),
         Accent = Color3.fromRGB(170, 80, 255), AccentBright = Color3.fromRGB(200, 130, 255),
         AccentDim = Color3.fromRGB(120, 50, 200), AccentGlow = Color3.fromRGB(190, 100, 255),
-        Text = Color3.fromRGB(240, 235, 248), TextDim = Color3.fromRGB(165, 150, 180),
-        TextDark = Color3.fromRGB(105, 95, 120), TextBright = Color3.fromRGB(255, 255, 255),
-        Stroke = Color3.fromRGB(40, 28, 56), StrokeStrong = Color3.fromRGB(60, 45, 84),
+        Text = Color3.fromRGB(240, 235, 248), TextDim = Color3.fromRGB(170, 155, 185),
+        TextDark = Color3.fromRGB(110, 100, 125), TextBright = Color3.fromRGB(255, 255, 255),
+        Stroke = Color3.fromRGB(48, 34, 68), StrokeStrong = Color3.fromRGB(74, 58, 100),
         StrokeAccent = Color3.fromRGB(140, 70, 220),
         Success = Color3.fromRGB(60, 220, 130), Warning = Color3.fromRGB(255, 180, 50),
         Error = Color3.fromRGB(220, 50, 60),
     },
     Crimson = {
-        Bg = Color3.fromRGB(14, 8, 10), BgGradient1 = Color3.fromRGB(20, 12, 14),
-        BgGradient2 = Color3.fromRGB(10, 6, 8), Panel = Color3.fromRGB(22, 14, 18),
-        Element = Color3.fromRGB(28, 18, 22), ElementHover = Color3.fromRGB(38, 24, 28),
+        Bg = Color3.fromRGB(16, 10, 12),
+        BgGradient1 = Color3.fromRGB(36, 20, 24), BgGradient2 = Color3.fromRGB(12, 6, 8),
+        Panel = Color3.fromRGB(26, 16, 20),
+        PanelGradient1 = Color3.fromRGB(34, 22, 26), PanelGradient2 = Color3.fromRGB(16, 10, 12),
+        Element = Color3.fromRGB(32, 20, 24), ElementHover = Color3.fromRGB(46, 30, 36),
         Accent = Color3.fromRGB(255, 60, 90), AccentBright = Color3.fromRGB(255, 110, 130),
         AccentDim = Color3.fromRGB(200, 40, 70), AccentGlow = Color3.fromRGB(255, 80, 110),
-        Text = Color3.fromRGB(248, 235, 238), TextDim = Color3.fromRGB(180, 150, 160),
-        TextDark = Color3.fromRGB(120, 95, 105), TextBright = Color3.fromRGB(255, 255, 255),
-        Stroke = Color3.fromRGB(48, 28, 36), StrokeStrong = Color3.fromRGB(74, 44, 54),
+        Text = Color3.fromRGB(248, 235, 238), TextDim = Color3.fromRGB(185, 155, 165),
+        TextDark = Color3.fromRGB(125, 100, 110), TextBright = Color3.fromRGB(255, 255, 255),
+        Stroke = Color3.fromRGB(56, 32, 42), StrokeStrong = Color3.fromRGB(88, 52, 64),
         StrokeAccent = Color3.fromRGB(220, 60, 90),
         Success = Color3.fromRGB(60, 220, 130), Warning = Color3.fromRGB(255, 180, 50),
         Error = Color3.fromRGB(220, 50, 60),
     },
     Emerald = {
-        Bg = Color3.fromRGB(8, 14, 12), BgGradient1 = Color3.fromRGB(12, 22, 18),
-        BgGradient2 = Color3.fromRGB(6, 12, 10), Panel = Color3.fromRGB(14, 24, 20),
-        Element = Color3.fromRGB(18, 30, 26), ElementHover = Color3.fromRGB(26, 42, 36),
+        Bg = Color3.fromRGB(10, 16, 14),
+        BgGradient1 = Color3.fromRGB(22, 38, 32), BgGradient2 = Color3.fromRGB(6, 12, 10),
+        Panel = Color3.fromRGB(16, 26, 22),
+        PanelGradient1 = Color3.fromRGB(22, 34, 28), PanelGradient2 = Color3.fromRGB(10, 18, 14),
+        Element = Color3.fromRGB(22, 34, 30), ElementHover = Color3.fromRGB(32, 50, 42),
         Accent = Color3.fromRGB(50, 220, 130), AccentBright = Color3.fromRGB(100, 240, 160),
         AccentDim = Color3.fromRGB(30, 170, 100), AccentGlow = Color3.fromRGB(80, 240, 150),
-        Text = Color3.fromRGB(235, 248, 240), TextDim = Color3.fromRGB(150, 175, 162),
-        TextDark = Color3.fromRGB(95, 120, 108), TextBright = Color3.fromRGB(255, 255, 255),
-        Stroke = Color3.fromRGB(28, 50, 40), StrokeStrong = Color3.fromRGB(45, 78, 62),
+        Text = Color3.fromRGB(235, 248, 240), TextDim = Color3.fromRGB(155, 180, 167),
+        TextDark = Color3.fromRGB(100, 125, 113), TextBright = Color3.fromRGB(255, 255, 255),
+        Stroke = Color3.fromRGB(34, 58, 48), StrokeStrong = Color3.fromRGB(56, 92, 74),
         StrokeAccent = Color3.fromRGB(40, 180, 110),
         Success = Color3.fromRGB(60, 220, 130), Warning = Color3.fromRGB(255, 180, 50),
         Error = Color3.fromRGB(220, 50, 60),
@@ -107,14 +150,11 @@ local Anim = {
     Smooth = TweenInfo.new(0.42, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out),
     Bounce = TweenInfo.new(0.55, Enum.EasingStyle.Back,        Enum.EasingDirection.Out),
     Slide  = TweenInfo.new(0.5,  Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-    Spring = TweenInfo.new(0.7,  Enum.EasingStyle.Elastic,     Enum.EasingDirection.Out),
     Page   = TweenInfo.new(0.35, Enum.EasingStyle.Quint,       Enum.EasingDirection.Out),
 }
 
 local function tween(obj, info, props)
-    local t = TweenService:Create(obj, info, props)
-    t:Play()
-    return t
+    local t = TweenService:Create(obj, info, props); t:Play(); return t
 end
 
 ------------------------------------------------------------------------------
@@ -134,18 +174,14 @@ end
 local function corner(parent, r) return new("UICorner", { CornerRadius = UDim.new(0, r or 10), Parent = parent }) end
 local function stroke(parent, color, thick, transp)
     return new("UIStroke", {
-        Color = color or Theme.Stroke, Thickness = thick or 1,
-        Transparency = transp or 0,
-        ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-        Parent = parent,
+        Color = color or Theme.Stroke, Thickness = thick or 1, Transparency = transp or 0,
+        ApplyStrokeMode = Enum.ApplyStrokeMode.Border, Parent = parent,
     })
 end
 local function pad(parent, t, b, l, r)
     return new("UIPadding", {
-        PaddingTop = UDim.new(0, t or 0),
-        PaddingBottom = UDim.new(0, b or t or 0),
-        PaddingLeft = UDim.new(0, l or t or 0),
-        PaddingRight = UDim.new(0, r or l or t or 0),
+        PaddingTop = UDim.new(0, t or 0), PaddingBottom = UDim.new(0, b or t or 0),
+        PaddingLeft = UDim.new(0, l or t or 0), PaddingRight = UDim.new(0, r or l or t or 0),
         Parent = parent,
     })
 end
@@ -155,40 +191,27 @@ local function gradient(parent, colors, rotation, transparency)
         table.insert(seq, ColorSequenceKeypoint.new((i - 1) / (#colors - 1), c))
     end
     return new("UIGradient", {
-        Color = ColorSequence.new(seq),
-        Rotation = rotation or 90,
-        Transparency = transparency or NumberSequence.new(0),
-        Parent = parent,
+        Color = ColorSequence.new(seq), Rotation = rotation or 90,
+        Transparency = transparency or NumberSequence.new(0), Parent = parent,
     })
 end
 local function glow(parent, color, sizeBoost, transp)
     return new("ImageLabel", {
-        Name = "Glow", BackgroundTransparency = 1,
-        Image = "rbxassetid://5028857084",
-        ImageColor3 = color or Theme.AccentGlow,
-        ImageTransparency = transp or 0.5,
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(24, 24, 276, 276),
+        Name = "Glow", BackgroundTransparency = 1, Image = "rbxassetid://5028857084",
+        ImageColor3 = color or Theme.AccentGlow, ImageTransparency = transp or 0.5,
+        ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(24, 24, 276, 276),
         Size = UDim2.new(1, sizeBoost or 30, 1, sizeBoost or 30),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        ZIndex = (parent.ZIndex or 1) - 1,
-        Parent = parent,
+        Position = UDim2.new(0.5, 0, 0.5, 0), AnchorPoint = Vector2.new(0.5, 0.5),
+        ZIndex = (parent.ZIndex or 1) - 1, Parent = parent,
     })
 end
 local function shadow(parent, transp)
     return new("ImageLabel", {
-        Name = "Shadow", BackgroundTransparency = 1,
-        Image = "rbxassetid://6014261993",
-        ImageColor3 = Color3.new(0, 0, 0),
-        ImageTransparency = transp or 0.4,
-        ScaleType = Enum.ScaleType.Slice,
-        SliceCenter = Rect.new(49, 49, 450, 450),
-        Size = UDim2.new(1, 60, 1, 60),
-        Position = UDim2.new(0.5, 0, 0.5, 0),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        ZIndex = (parent.ZIndex or 1) - 1,
-        Parent = parent,
+        Name = "Shadow", BackgroundTransparency = 1, Image = "rbxassetid://6014261993",
+        ImageColor3 = Color3.new(0, 0, 0), ImageTransparency = transp or 0.4,
+        ScaleType = Enum.ScaleType.Slice, SliceCenter = Rect.new(49, 49, 450, 450),
+        Size = UDim2.new(1, 60, 1, 60), Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5), ZIndex = (parent.ZIndex or 1) - 1, Parent = parent,
     })
 end
 
@@ -202,14 +225,18 @@ local function parentGui(gui)
     if not ok then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 end
 
+-- Smooth draggable. Uses RenderStepped with optional smoothing toward target.
 local function makeDraggable(frame, handle)
     local dragging, dragStart, startPos = false, nil, nil
+    local targetPos = frame.Position
+
     handle.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1
         or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = frame.Position
+            targetPos = frame.Position
             local changed; changed = input.Changed:Connect(function()
                 if input.UserInputState == Enum.UserInputState.End then
                     dragging = false
@@ -218,16 +245,35 @@ local function makeDraggable(frame, handle)
             end)
         end
     end)
+
     UserInputService.InputChanged:Connect(function(input)
         if dragging
         and (input.UserInputType == Enum.UserInputType.MouseMovement
           or input.UserInputType == Enum.UserInputType.Touch) then
             local d = input.Position - dragStart
-            frame.Position = UDim2.new(
+            targetPos = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + d.X,
                 startPos.Y.Scale, startPos.Y.Offset + d.Y
             )
+            if (Phantom.Config.DragSmoothness or 0) <= 0 then
+                frame.Position = targetPos
+            end
         end
+    end)
+
+    -- Per-frame smoothing if enabled
+    RunService.RenderStepped:Connect(function(dt)
+        if not dragging then return end
+        local s = Phantom.Config.DragSmoothness or 0
+        if s <= 0 then return end
+        local cur = frame.Position
+        local alpha = 1 - math.exp(-dt / s)
+        frame.Position = UDim2.new(
+            cur.X.Scale + (targetPos.X.Scale - cur.X.Scale) * alpha,
+            cur.X.Offset + (targetPos.X.Offset - cur.X.Offset) * alpha,
+            cur.Y.Scale + (targetPos.Y.Scale - cur.Y.Scale) * alpha,
+            cur.Y.Offset + (targetPos.Y.Offset - cur.Y.Offset) * alpha
+        )
     end)
 end
 
@@ -236,24 +282,136 @@ local function isMobile()
 end
 
 ------------------------------------------------------------------------------
--- RIPPLE
+-- DRAWN ICONS (no font/unicode dependency)
+------------------------------------------------------------------------------
+local function drawCloseIcon(parent, color)
+    local icons = {}
+    local function bar(rot)
+        local f = new("Frame", {
+            BackgroundColor3 = color, BackgroundTransparency = 0,
+            Size = UDim2.new(0, 12, 0, 2),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Rotation = rot, BorderSizePixel = 0, Parent = parent,
+        })
+        corner(f, 1)
+        return f
+    end
+    icons[#icons + 1] = bar(45)
+    icons[#icons + 1] = bar(-45)
+    return icons
+end
+
+local function drawMinimizeIcon(parent, color)
+    local f = new("Frame", {
+        BackgroundColor3 = color, BackgroundTransparency = 0,
+        Size = UDim2.new(0, 12, 0, 2),
+        Position = UDim2.new(0.5, 0, 0.5, 4),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BorderSizePixel = 0, Parent = parent,
+    })
+    corner(f, 1)
+    return { f }
+end
+
+local function drawResizeIcon(parent, color)
+    local outer = new("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 11, 0, 11),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        BorderSizePixel = 0, Parent = parent,
+    })
+    corner(outer, 2)
+    local s = stroke(outer, color, 1.5)
+    return { outer, _stroke = s }
+end
+
+local function tintIcons(icons, color)
+    for _, ic in ipairs(icons) do
+        if ic:IsA("Frame") then
+            tween(ic, Anim.Fast, { BackgroundColor3 = color })
+        end
+    end
+    if icons._stroke then
+        tween(icons._stroke, Anim.Fast, { Color = color })
+    end
+end
+
+-- Type icons for notifications (drawn with frames)
+local function drawSuccessIcon(parent, color)
+    -- a checkmark using two rotated rectangles
+    local short = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 6, 0, 2),
+        Position = UDim2.new(0.5, -3, 0.5, 2),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Rotation = 45, Parent = parent,
+    })
+    corner(short, 1)
+    local long = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 11, 0, 2),
+        Position = UDim2.new(0.5, 2, 0.5, -1),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Rotation = -45, Parent = parent,
+    })
+    corner(long, 1)
+end
+
+local function drawWarningIcon(parent, color)
+    -- exclamation: vertical bar + dot
+    local bar = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 2, 0, 8),
+        Position = UDim2.new(0.5, 0, 0.5, -2),
+        AnchorPoint = Vector2.new(0.5, 0.5), Parent = parent,
+    })
+    corner(bar, 1)
+    local dot = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 2, 0, 2),
+        Position = UDim2.new(0.5, 0, 0.5, 4),
+        AnchorPoint = Vector2.new(0.5, 0.5), Parent = parent,
+    })
+    corner(dot, 1)
+end
+
+local function drawErrorIcon(parent, color)
+    drawCloseIcon(parent, color)
+end
+
+local function drawInfoIcon(parent, color)
+    local dot = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 2, 0, 2),
+        Position = UDim2.new(0.5, 0, 0.5, -4),
+        AnchorPoint = Vector2.new(0.5, 0.5), Parent = parent,
+    })
+    corner(dot, 1)
+    local bar = new("Frame", {
+        BackgroundColor3 = color, BorderSizePixel = 0,
+        Size = UDim2.new(0, 2, 0, 7),
+        Position = UDim2.new(0.5, 0, 0.5, 2),
+        AnchorPoint = Vector2.new(0.5, 0.5), Parent = parent,
+    })
+    corner(bar, 1)
+end
+
+------------------------------------------------------------------------------
+-- RIPPLE + HOVER SCALE
 ------------------------------------------------------------------------------
 local function ripple(parent, x, y)
     local r = new("Frame", {
-        BackgroundColor3 = Theme.AccentBright,
-        BackgroundTransparency = 0.7,
+        BackgroundColor3 = Theme.AccentBright, BackgroundTransparency = 0.7,
         Position = UDim2.new(0, x - parent.AbsolutePosition.X, 0, y - parent.AbsolutePosition.Y),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 0, 0, 0),
-        BorderSizePixel = 0,
-        ZIndex = (parent.ZIndex or 1) + 1,
-        Parent = parent,
+        AnchorPoint = Vector2.new(0.5, 0.5), Size = UDim2.new(0, 0, 0, 0),
+        BorderSizePixel = 0, ZIndex = (parent.ZIndex or 1) + 1, Parent = parent,
     })
     corner(r, 999)
     local size = math.max(parent.AbsoluteSize.X, parent.AbsoluteSize.Y) * 2
     tween(r, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {
-        Size = UDim2.new(0, size, 0, size),
-        BackgroundTransparency = 1,
+        Size = UDim2.new(0, size, 0, size), BackgroundTransparency = 1,
     })
     task.delay(0.5, function() r:Destroy() end)
 end
@@ -265,13 +423,68 @@ local function attachRipple(button)
         end
     end)
 end
-
 local function attachHoverScale(button, scale)
     scale = scale or 1.02
     local s = new("UIScale", { Scale = 1, Parent = button })
     button.MouseEnter:Connect(function() tween(s, Anim.Fast, { Scale = scale }) end)
     button.MouseLeave:Connect(function() tween(s, Anim.Fast, { Scale = 1 }) end)
     return s
+end
+
+------------------------------------------------------------------------------
+-- TOOLTIP SYSTEM
+------------------------------------------------------------------------------
+local TooltipGui, TooltipFrame, TooltipLabel
+local function ensureTooltip()
+    if TooltipGui and TooltipGui.Parent then return end
+    TooltipGui = new("ScreenGui", {
+        Name = "PhantomTooltip", IgnoreGuiInset = true, ResetOnSpawn = false,
+        ZIndexBehavior = Enum.ZIndexBehavior.Sibling, DisplayOrder = 99999,
+    })
+    parentGui(TooltipGui)
+    TooltipFrame = new("Frame", {
+        BackgroundColor3 = Theme.Bg, Visible = false,
+        AutomaticSize = Enum.AutomaticSize.XY,
+        Size = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.new(0, 0, 0, 0),
+        Parent = TooltipGui,
+    })
+    corner(TooltipFrame, 8)
+    stroke(TooltipFrame, Theme.StrokeAccent, 1)
+    pad(TooltipFrame, 8, 8, 12, 12)
+    gradient(TooltipFrame, { Theme.PanelGradient1, Theme.PanelGradient2 }, 90)
+    TooltipLabel = new("TextLabel", {
+        BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.XY,
+        Size = UDim2.new(0, 0, 0, 0),
+        Font = Enum.Font.Gotham, TextSize = 12,
+        TextColor3 = Theme.Text, TextWrapped = false,
+        Text = "", Parent = TooltipFrame,
+    })
+end
+
+local function showTooltip(text, x, y)
+    if not Phantom.Config.TooltipsEnabled then return end
+    ensureTooltip()
+    TooltipLabel.Text = text
+    TooltipFrame.Visible = true
+    TooltipFrame.Position = UDim2.new(0, x + 14, 0, y + 14)
+end
+local function hideTooltip()
+    if TooltipFrame then TooltipFrame.Visible = false end
+end
+
+local function attachTooltip(element, text)
+    if not text or text == "" then return end
+    element.MouseEnter:Connect(function()
+        local mp = UserInputService:GetMouseLocation()
+        showTooltip(text, mp.X, mp.Y)
+    end)
+    element.MouseMoved:Connect(function(x, y)
+        if TooltipFrame and TooltipFrame.Visible then
+            TooltipFrame.Position = UDim2.new(0, x + 14, 0, y + 14)
+        end
+    end)
+    element.MouseLeave:Connect(hideTooltip)
 end
 
 ------------------------------------------------------------------------------
@@ -302,7 +515,41 @@ local function safeRead(path)
 end
 
 ------------------------------------------------------------------------------
--- NOTIFICATIONS (with types)
+-- LOGO HELPER (text or image based on Phantom.Config.LogoImage)
+------------------------------------------------------------------------------
+local function buildLogo(parent, size, useImage)
+    local holder = new("Frame", {
+        BackgroundColor3 = Theme.Accent,
+        Size = UDim2.new(0, size, 0, size),
+        Parent = parent,
+    })
+    corner(holder, math.floor(size * 0.3))
+
+    if useImage and Phantom.Config.LogoImage then
+        holder.BackgroundTransparency = 1
+        new("ImageLabel", {
+            BackgroundTransparency = 1,
+            Size = UDim2.new(1, 0, 1, 0),
+            Image = Phantom.Config.LogoImage,
+            ScaleType = Enum.ScaleType.Fit,
+            Parent = holder,
+        })
+    else
+        gradient(holder, { Theme.AccentBright, Theme.Accent, Theme.AccentDim }, 135)
+        glow(holder, Theme.AccentGlow, math.floor(size * 0.6), 0.55)
+        new("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+            Font = Enum.Font.GothamBlack, TextSize = math.floor(size * 0.55),
+            TextColor3 = Theme.TextBright,
+            Text = Phantom.Config.LogoText or "P",
+            Parent = holder,
+        })
+    end
+    return holder
+end
+
+------------------------------------------------------------------------------
+-- NOTIFICATIONS (redesigned, Discord-style with icon area)
 ------------------------------------------------------------------------------
 local NotifGui
 
@@ -325,8 +572,7 @@ local function ensureNotifGui()
         FillDirection = Enum.FillDirection.Vertical,
         VerticalAlignment = Enum.VerticalAlignment.Bottom,
         HorizontalAlignment = Enum.HorizontalAlignment.Right,
-        Padding = UDim.new(0, 10),
-        Parent = list,
+        Padding = UDim.new(0, 10), Parent = list,
     })
 end
 
@@ -334,16 +580,11 @@ function Phantom:Notify(data)
     ensureNotifGui()
     data = data or {}
 
-    -- Determine accent color from type
     local typeColor = Theme.Accent
-    local typeColorBright = Theme.AccentBright
-    local typeColorDim = Theme.AccentDim
-    if data.Type == "success" then
-        typeColor = Theme.Success; typeColorBright = Theme.Success; typeColorDim = Theme.Success
-    elseif data.Type == "warning" then
-        typeColor = Theme.Warning; typeColorBright = Theme.Warning; typeColorDim = Theme.Warning
-    elseif data.Type == "error" then
-        typeColor = Theme.Error; typeColorBright = Theme.Error; typeColorDim = Theme.Error
+    local drawTypeIcon = drawInfoIcon
+    if data.Type == "success" then typeColor = Theme.Success; drawTypeIcon = drawSuccessIcon
+    elseif data.Type == "warning" then typeColor = Theme.Warning; drawTypeIcon = drawWarningIcon
+    elseif data.Type == "error"   then typeColor = Theme.Error;   drawTypeIcon = drawErrorIcon
     end
 
     local notif = new("Frame", {
@@ -355,47 +596,61 @@ function Phantom:Notify(data)
     })
     corner(notif, 12)
     local s = stroke(notif, Theme.Stroke, 1, 1)
-    pad(notif, 14, 14, 18, 18)
-    shadow(notif, 0.6)
-    gradient(notif, { Theme.BgGradient1, Theme.Panel }, 135)
+    shadow(notif, 0.5)
+    gradient(notif, { Theme.PanelGradient1, Theme.PanelGradient2 }, 135)
+    pad(notif, 12, 12, 14, 14)
 
-    local accent = new("Frame", {
-        BackgroundColor3 = typeColor,
-        Position = UDim2.new(0, -18, 0, -14),
-        Size = UDim2.new(0, 3, 1, 28),
+    -- Icon circle (left)
+    local iconBg = new("Frame", {
+        BackgroundColor3 = Theme.Bg,
+        Size = UDim2.new(0, 28, 0, 28),
+        Position = UDim2.new(0, 0, 0, 0),
         BackgroundTransparency = 1,
         Parent = notif,
     })
-    gradient(accent, { typeColorBright, typeColor, typeColorDim }, 90)
+    corner(iconBg, 999)
+    local iconStroke = stroke(iconBg, typeColor, 1.5, 1)
+    -- Soft fill
+    local iconFill = new("Frame", {
+        BackgroundColor3 = typeColor,
+        BackgroundTransparency = 0.85,
+        Size = UDim2.new(1, 0, 1, 0),
+        BorderSizePixel = 0, Parent = iconBg,
+    })
+    corner(iconFill, 999)
 
+    drawTypeIcon(iconBg, typeColor)
+
+    -- Text area
     local title = new("TextLabel", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 0, 18),
-        Font = Enum.Font.GothamBold, TextSize = 14,
+        Position = UDim2.new(0, 38, 0, 1),
+        Size = UDim2.new(1, -38, 0, 16),
+        Font = Enum.Font.GothamBold, TextSize = 13,
         TextColor3 = Theme.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
         Text = data.Title or "Notification",
-        TextTransparency = 1,
-        Parent = notif,
+        TextTransparency = 1, Parent = notif,
     })
     local content = new("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 0, 0, 22),
-        Size = UDim2.new(1, 0, 0, 0),
+        Position = UDim2.new(0, 38, 0, 18),
+        Size = UDim2.new(1, -38, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         Font = Enum.Font.Gotham, TextSize = 12,
         TextColor3 = Theme.TextDim,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextWrapped = true,
         Text = data.Content or "",
-        TextTransparency = 1,
-        Parent = notif,
+        TextTransparency = 1, Parent = notif,
     })
 
+    -- Slide in
     notif.Position = UDim2.new(1, 100, 0, 0)
     tween(notif, Anim.Slide, { BackgroundTransparency = 0, Position = UDim2.new(0, 0, 0, 0) })
     tween(s, Anim.Smooth, { Transparency = 0 })
-    tween(accent, Anim.Smooth, { BackgroundTransparency = 0 })
+    tween(iconBg, Anim.Smooth, { BackgroundTransparency = 0 })
+    tween(iconStroke, Anim.Smooth, { Transparency = 0 })
     tween(title, Anim.Smooth, { TextTransparency = 0 })
     tween(content, Anim.Smooth, { TextTransparency = 0.15 })
 
@@ -403,11 +658,11 @@ function Phantom:Notify(data)
         if not notif.Parent then return end
         tween(notif, Anim.Smooth, { BackgroundTransparency = 1, Position = UDim2.new(1, 100, 0, 0) })
         tween(s, Anim.Smooth, { Transparency = 1 })
-        tween(accent, Anim.Smooth, { BackgroundTransparency = 1 })
+        tween(iconBg, Anim.Smooth, { BackgroundTransparency = 1 })
+        tween(iconStroke, Anim.Smooth, { Transparency = 1 })
         tween(title, Anim.Smooth, { TextTransparency = 1 })
         tween(content, Anim.Smooth, { TextTransparency = 1 })
-        task.wait(0.5)
-        notif:Destroy()
+        task.wait(0.5); notif:Destroy()
     end)
 end
 
@@ -418,16 +673,36 @@ function Phantom:CreateWindow(settings)
     settings = settings or {}
     local mobile = isMobile()
 
+    -- FIX 6: re-execute cleanup -- destroy any existing PhantomUI before creating new
+    pcall(function()
+        for _, gui in ipairs(CoreGui:GetChildren()) do
+            if gui.Name == "PhantomUI" or gui.Name == "PhantomKey" then gui:Destroy() end
+        end
+    end)
+    pcall(function()
+        if gethui then
+            for _, gui in ipairs(gethui():GetChildren()) do
+                if gui.Name == "PhantomUI" or gui.Name == "PhantomKey" then gui:Destroy() end
+            end
+        end
+    end)
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        if pg then
+            for _, gui in ipairs(pg:GetChildren()) do
+                if gui.Name == "PhantomUI" or gui.Name == "PhantomKey" then gui:Destroy() end
+            end
+        end
+    end)
+
     if settings.Theme and Phantom.Themes[settings.Theme] then
         Theme = Phantom.Themes[settings.Theme]
     end
 
     local ScreenGui = new("ScreenGui", {
-        Name = "PhantomUI",
-        ResetOnSpawn = false,
+        Name = "PhantomUI", ResetOnSpawn = false,
         ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-        IgnoreGuiInset = true,
-        DisplayOrder = 100,
+        IgnoreGuiInset = true, DisplayOrder = 100,
     })
     parentGui(ScreenGui)
 
@@ -435,14 +710,19 @@ function Phantom:CreateWindow(settings)
     if settings.KeySystem and settings.KeySettings then
         local keys = settings.KeySettings.Key
         if type(keys) == "string" then keys = { keys } end
+        if type(keys) ~= "table" or #keys == 0 then keys = { "" } end
 
         local keyFile = CFG_FOLDER .. "/" .. (settings.KeySettings.FileName or "key") .. CFG_EXT
         ensureFolder("Phantom"); ensureFolder(CFG_FOLDER)
 
-        local saved = settings.KeySettings.SaveKey and safeRead(keyFile)
         local approved = false
-        if saved then
-            for _, k in ipairs(keys) do if saved == k then approved = true; break end end
+        if settings.KeySettings.SaveKey then
+            local saved = safeRead(keyFile)
+            if saved then
+                for _, k in ipairs(keys) do
+                    if saved == k then approved = true; break end
+                end
+            end
         end
 
         if not approved then
@@ -454,10 +734,9 @@ function Phantom:CreateWindow(settings)
 
             local box = new("Frame", {
                 BackgroundColor3 = Theme.Bg,
-                Size = UDim2.new(0, 380, 0, 220),
-                Position = UDim2.new(0.5, -190, 0.5, -110),
-                BackgroundTransparency = 1,
-                Parent = KeyGui,
+                Size = UDim2.new(0, 380, 0, 230),
+                Position = UDim2.new(0.5, -190, 0.5, -115),
+                BackgroundTransparency = 1, Parent = KeyGui,
             })
             corner(box, 14)
             local boxStroke = stroke(box, Theme.StrokeAccent, 1, 0.4)
@@ -471,10 +750,8 @@ function Phantom:CreateWindow(settings)
                 BackgroundTransparency = 1,
                 Size = UDim2.new(1, 0, 0, 24),
                 Font = Enum.Font.GothamBold, TextSize = 18,
-                TextColor3 = Theme.Text,
-                TextXAlignment = Enum.TextXAlignment.Left,
-                Text = settings.KeySettings.Title or "Phantom",
-                Parent = box,
+                TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left,
+                Text = settings.KeySettings.Title or "Phantom", Parent = box,
             })
             new("TextLabel", {
                 BackgroundTransparency = 1,
@@ -483,8 +760,7 @@ function Phantom:CreateWindow(settings)
                 Font = Enum.Font.Gotham, TextSize = 12,
                 TextColor3 = Theme.Accent,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Text = settings.KeySettings.Subtitle or "Key System",
-                Parent = box,
+                Text = settings.KeySettings.Subtitle or "Key System", Parent = box,
             })
             new("TextLabel", {
                 BackgroundTransparency = 1,
@@ -495,8 +771,17 @@ function Phantom:CreateWindow(settings)
                 TextXAlignment = Enum.TextXAlignment.Left,
                 TextYAlignment = Enum.TextYAlignment.Top,
                 TextWrapped = true,
-                Text = settings.KeySettings.Note or "Enter your key.",
-                Parent = box,
+                Text = settings.KeySettings.Note or "Enter your key.", Parent = box,
+            })
+
+            local statusLabel = new("TextLabel", {
+                BackgroundTransparency = 1,
+                Position = UDim2.new(0, 0, 1, -98),
+                Size = UDim2.new(1, 0, 0, 14),
+                Font = Enum.Font.Gotham, TextSize = 11,
+                TextColor3 = Theme.TextDim,
+                TextXAlignment = Enum.TextXAlignment.Left,
+                Text = "", Parent = box,
             })
 
             local inputBg = new("Frame", {
@@ -532,33 +817,60 @@ function Phantom:CreateWindow(settings)
             corner(submitBtn, 10)
             gradient(submitBtn, { Theme.AccentBright, Theme.Accent }, 90)
             attachRipple(submitBtn)
-            attachHoverScale(submitBtn, 1.02)
 
+            -- FIX 2: bulletproof key check.
+            local processing = false
             local function tryKey()
+                if processing or approved then return end
+                processing = true
+
+                local raw = inputBox.Text or ""
+                -- trim leading/trailing whitespace
+                local trimmed = raw:gsub("^%s+", ""):gsub("%s+$", "")
+
+                local match = false
                 for _, k in ipairs(keys) do
-                    if inputBox.Text == k then
-                        if settings.KeySettings.SaveKey then safeWrite(keyFile, k) end
-                        tween(box, Anim.Smooth, { BackgroundTransparency = 1, Size = UDim2.new(0, 380, 0, 0) })
-                        task.wait(0.4); KeyGui:Destroy(); approved = true; return
+                    if trimmed == k then match = true; break end
+                end
+
+                if match then
+                    approved = true
+                    if settings.KeySettings.SaveKey then safeWrite(keyFile, trimmed) end
+                    statusLabel.Text = "Verified."
+                    statusLabel.TextColor3 = Theme.Success
+                    tween(box, Anim.Smooth, {
+                        BackgroundTransparency = 1,
+                        Size = UDim2.new(0, 380, 0, 0),
+                        Position = UDim2.new(0.5, -190, 0.5, 0),
+                    })
+                    task.wait(0.4)
+                    KeyGui:Destroy()
+                else
+                    statusLabel.Text = "Invalid key. Try again."
+                    statusLabel.TextColor3 = Theme.Error
+                    inputBox.Text = ""
+                    tween(boxStroke, Anim.Fast, { Color = Theme.Error })
+                    local origPos = box.Position
+                    for _ = 1, 3 do
+                        tween(box, TweenInfo.new(0.05), { Position = origPos + UDim2.new(0, 8, 0, 0) })
+                        task.wait(0.05)
+                        tween(box, TweenInfo.new(0.05), { Position = origPos - UDim2.new(0, 8, 0, 0) })
+                        task.wait(0.05)
                     end
+                    tween(box, Anim.Fast, { Position = origPos })
+                    tween(boxStroke, Anim.Fast, { Color = Theme.StrokeAccent })
+                    processing = false
                 end
-                inputBox.Text = ""; inputBox.PlaceholderText = "Wrong key!"
-                tween(boxStroke, Anim.Fast, { Color = Theme.Error })
-                local origPos = box.Position
-                for _ = 1, 3 do
-                    tween(box, TweenInfo.new(0.05), { Position = origPos + UDim2.new(0, 8, 0, 0) }):Play()
-                    task.wait(0.05)
-                    tween(box, TweenInfo.new(0.05), { Position = origPos - UDim2.new(0, 8, 0, 0) }):Play()
-                    task.wait(0.05)
-                end
-                tween(box, Anim.Fast, { Position = origPos })
-                tween(boxStroke, Anim.Fast, { Color = Theme.StrokeAccent })
             end
 
             submitBtn.MouseButton1Click:Connect(tryKey)
-            inputBox.FocusLost:Connect(function(enter) if enter then tryKey() end end)
+            submitBtn.TouchTap:Connect(tryKey)
+            inputBox.FocusLost:Connect(function(enterPressed)
+                if enterPressed then tryKey() end
+            end)
 
-            repeat task.wait() until approved
+            -- block until verified
+            while not approved do task.wait() end
         end
     end
 
@@ -572,22 +884,18 @@ function Phantom:CreateWindow(settings)
         Size = UDim2.new(0, 0, 0, 0),
         Position = UDim2.new(0.5, 0, 0.5, 0),
         AnchorPoint = Vector2.new(0.5, 0.5),
-        BackgroundTransparency = 1,
-        ClipsDescendants = true,
-        Parent = ScreenGui,
+        BackgroundTransparency = 1, ClipsDescendants = true, Parent = ScreenGui,
     })
-    corner(Main, 16) -- More rounded
+    corner(Main, 16)
     local mainStroke = stroke(Main, Theme.Stroke, 1, 1)
     shadow(Main, 0.4)
-    gradient(Main, { Theme.BgGradient1, Theme.BgGradient2 }, 135)
+    -- FIX 8: stronger background gradient (lighter top → darker bottom)
+    gradient(Main, { Theme.BgGradient1, Theme.BgGradient2 }, 90)
 
     -- Top accent line
     local accentLine = new("Frame", {
-        BackgroundColor3 = Theme.Accent,
-        BackgroundTransparency = 0.3,
-        Size = UDim2.new(1, 0, 0, 1),
-        BorderSizePixel = 0,
-        Parent = Main,
+        BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0.3,
+        Size = UDim2.new(1, 0, 0, 1), BorderSizePixel = 0, Parent = Main,
     })
     gradient(accentLine, { Theme.Accent, Theme.AccentBright, Theme.Accent }, 0,
         NumberSequence.new({
@@ -598,26 +906,17 @@ function Phantom:CreateWindow(settings)
 
     -- LOADING SCREEN ------------------------------------------------------
     local LoadingFrame = new("Frame", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
         Parent = Main, ZIndex = 50,
     })
-    local lLogo = new("Frame", {
-        BackgroundColor3 = Theme.Accent,
-        Position = UDim2.new(0.5, 0, 0.5, -30),
-        AnchorPoint = Vector2.new(0.5, 0.5),
-        Size = UDim2.new(0, 50, 0, 50),
-        BackgroundTransparency = 1,
-        Parent = LoadingFrame,
-    })
-    corner(lLogo, 14)
-    gradient(lLogo, { Theme.AccentBright, Theme.Accent, Theme.AccentDim }, 135)
-    local lGlow = glow(lLogo, Theme.AccentGlow, 60, 1)
-    new("TextLabel", {
-        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.GothamBlack, TextSize = 26,
-        TextColor3 = Theme.TextBright, Text = "P", Parent = lLogo,
-    })
+    local lLogo = buildLogo(LoadingFrame, 50, true)
+    lLogo.Position = UDim2.new(0.5, 0, 0.5, -30)
+    lLogo.AnchorPoint = Vector2.new(0.5, 0.5)
+    lLogo.BackgroundTransparency = (Phantom.Config.LogoImage and 1 or 1)
+    if not Phantom.Config.LogoImage then
+        tween(lLogo, Anim.Bounce, { BackgroundTransparency = 0 })
+    end
+
     local lTitle = new("TextLabel", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0.5, 0, 0.5, 30),
@@ -643,96 +942,112 @@ function Phantom:CreateWindow(settings)
     local topbarHeight = 56
     local Topbar = new("Frame", {
         Name = "Topbar",
-        BackgroundColor3 = Theme.Panel,
-        BackgroundTransparency = 0.4,
+        BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.4,
         Size = UDim2.new(1, 0, 0, topbarHeight),
         BorderSizePixel = 0, Parent = Main,
     })
+    gradient(Topbar, { Theme.PanelGradient1, Theme.PanelGradient2 }, 90)
 
-    local Logo = new("Frame", {
-        BackgroundColor3 = Theme.Accent,
-        Position = UDim2.new(0, 16, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
-        Size = UDim2.new(0, 26, 0, 26),
-        Parent = Topbar,
-    })
-    corner(Logo, 8)
-    gradient(Logo, { Theme.AccentBright, Theme.Accent, Theme.AccentDim }, 135)
-    glow(Logo, Theme.AccentGlow, 20, 0.6)
-    new("TextLabel", {
-        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.GothamBlack, TextSize = 14,
-        TextColor3 = Theme.TextBright, Text = "P", Parent = Logo,
-    })
+    -- FIX 4: Logo can be configurable image
+    local logoSize = 28
+    local logo = buildLogo(Topbar, logoSize, true)
+    logo.Position = UDim2.new(0, 16, 0.5, 0)
+    logo.AnchorPoint = Vector2.new(0, 0.5)
+
     new("TextLabel", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 52, 0, 0),
+        Position = UDim2.new(0, 56, 0, 0),
         Size = UDim2.new(0, 200, 1, 0),
         Font = Enum.Font.GothamBold, TextSize = 17,
-        TextColor3 = Theme.Text,
-        TextXAlignment = Enum.TextXAlignment.Left,
-        Text = settings.Name or "Phantom",
-        Parent = Topbar,
+        TextColor3 = Theme.Text, TextXAlignment = Enum.TextXAlignment.Left,
+        Text = settings.Name or "Phantom", Parent = Topbar,
     })
 
-    -- Search
-    local searchWidth = mobile and 140 or 280
+    -- Search (centered, prominent)
+    local searchWidth = mobile and 160 or 320
     local SearchFrame = new("Frame", {
         BackgroundColor3 = Theme.Element,
-        Position = UDim2.new(0, 260, 0.5, 0),
-        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.new(0.5, 0, 0.5, 0),
+        AnchorPoint = Vector2.new(0.5, 0.5),
         Size = UDim2.new(0, searchWidth, 0, 32),
         Parent = Topbar,
     })
     corner(SearchFrame, 10)
     local searchStroke = stroke(SearchFrame, Theme.Stroke, 1)
-    new("TextLabel", {
+
+    -- Drawn search icon (magnifier circle)
+    local searchIcon = new("Frame", {
         BackgroundTransparency = 1,
-        Position = UDim2.new(0, 12, 0, 0),
-        Size = UDim2.new(0, 16, 1, 0),
-        Font = Enum.Font.GothamBold, TextSize = 13,
-        TextColor3 = Theme.TextDark, Text = "⌕", Parent = SearchFrame,
+        Position = UDim2.new(0, 10, 0.5, 0),
+        AnchorPoint = Vector2.new(0, 0.5),
+        Size = UDim2.new(0, 14, 0, 14),
+        Parent = SearchFrame,
     })
+    local sCircle = new("Frame", {
+        BackgroundTransparency = 1,
+        Size = UDim2.new(0, 10, 0, 10),
+        Parent = searchIcon,
+    })
+    corner(sCircle, 999)
+    stroke(sCircle, Theme.TextDark, 1.5)
+    local sHandle = new("Frame", {
+        BackgroundColor3 = Theme.TextDark,
+        Position = UDim2.new(0, 9, 0, 9),
+        Size = UDim2.new(0, 5, 0, 1.5),
+        Rotation = 45, BorderSizePixel = 0, Parent = searchIcon,
+    })
+    corner(sHandle, 1)
+
     local SearchInput = new("TextBox", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 32, 0, 0),
         Size = UDim2.new(1, -42, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 13,
-        TextColor3 = Theme.Text,
-        PlaceholderText = "Search", PlaceholderColor3 = Theme.TextDark,
+        TextColor3 = Theme.Text, PlaceholderText = "Search",
+        PlaceholderColor3 = Theme.TextDark,
         Text = "", TextXAlignment = Enum.TextXAlignment.Left,
         ClearTextOnFocus = false, Parent = SearchFrame,
     })
     SearchInput.Focused:Connect(function() tween(searchStroke, Anim.Fast, { Color = Theme.Accent }) end)
     SearchInput.FocusLost:Connect(function() tween(searchStroke, Anim.Fast, { Color = Theme.Stroke }) end)
 
-    local function makeTopBtn(symbol, x, accentColor)
+    -- FIX 1: drawn icon top-bar buttons (no unicode)
+    local function makeTopBtn(iconKind, x, accentColor)
         local b = new("TextButton", {
-            BackgroundColor3 = Theme.Element,
-            BackgroundTransparency = 0.3,
+            BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.3,
             Position = UDim2.new(1, x, 0.5, 0),
             AnchorPoint = Vector2.new(0, 0.5),
             Size = UDim2.new(0, 32, 0, 32),
-            Font = Enum.Font.GothamBold, TextSize = 14,
-            TextColor3 = Theme.TextDim, Text = symbol,
-            AutoButtonColor = false, Parent = Topbar,
+            Text = "", AutoButtonColor = false, Parent = Topbar,
         })
         corner(b, 10)
         local bs = stroke(b, Theme.Stroke, 1)
+
+        local icons
+        if iconKind == "close" then
+            icons = drawCloseIcon(b, Theme.TextDim)
+        elseif iconKind == "minimize" then
+            icons = drawMinimizeIcon(b, Theme.TextDim)
+        elseif iconKind == "resize" then
+            icons = drawResizeIcon(b, Theme.TextDim)
+        end
+
         b.MouseEnter:Connect(function()
-            tween(b, Anim.Fast, { BackgroundColor3 = Theme.ElementHover, BackgroundTransparency = 0, TextColor3 = accentColor or Theme.Text })
+            tween(b, Anim.Fast, { BackgroundColor3 = Theme.ElementHover, BackgroundTransparency = 0 })
             tween(bs, Anim.Fast, { Color = accentColor or Theme.StrokeStrong })
+            tintIcons(icons, accentColor or Theme.Text)
         end)
         b.MouseLeave:Connect(function()
-            tween(b, Anim.Fast, { BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.3, TextColor3 = Theme.TextDim })
+            tween(b, Anim.Fast, { BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.3 })
             tween(bs, Anim.Fast, { Color = Theme.Stroke })
+            tintIcons(icons, Theme.TextDim)
         end)
         return b
     end
 
-    local CloseBtn    = makeTopBtn("✕", -44, Theme.Error)
-    local MinimizeBtn = makeTopBtn("─", -84, Theme.Accent)
-    local ResizeBtn   = makeTopBtn("⛶", -124, Theme.Accent)
+    local CloseBtn    = makeTopBtn("close",    -44,  Theme.Error)
+    local MinimizeBtn = makeTopBtn("minimize", -84,  Theme.Accent)
+    local ResizeBtn   = makeTopBtn("resize",   -124, Theme.Accent)
 
     -- BODY ----------------------------------------------------------------
     local Body = new("Frame", {
@@ -744,43 +1059,35 @@ function Phantom:CreateWindow(settings)
 
     local sidebarWidth = mobile and 150 or 200
     local Sidebar = new("Frame", {
-        BackgroundColor3 = Theme.Panel,
-        BackgroundTransparency = 0.5,
+        BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.5,
         Size = UDim2.new(0, sidebarWidth, 1, 0),
         BorderSizePixel = 0, Parent = Body,
     })
     new("Frame", {
-        BackgroundColor3 = Theme.Stroke,
-        BackgroundTransparency = 0.5,
-        Position = UDim2.new(1, -1, 0, 8),
-        Size = UDim2.new(0, 1, 1, -16),
+        BackgroundColor3 = Theme.Stroke, BackgroundTransparency = 0.5,
+        Position = UDim2.new(1, -1, 0, 8), Size = UDim2.new(0, 1, 1, -16),
         BorderSizePixel = 0, Parent = Sidebar,
     })
 
-    -- Sidebar split: tab list (top) + player panel (bottom)
     local playerPanelHeight = 60
     local SidebarTop = new("Frame", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, -playerPanelHeight),
-        Parent = Sidebar,
+        Size = UDim2.new(1, 0, 1, -playerPanelHeight), Parent = Sidebar,
     })
     pad(SidebarTop, 12, 0, 12, 8)
 
     local TabList = new("ScrollingFrame", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
         ScrollBarThickness = 0, BorderSizePixel = 0,
         CanvasSize = UDim2.new(0, 0, 0, 0),
         AutomaticCanvasSize = Enum.AutomaticSize.Y,
-        ScrollingDirection = Enum.ScrollingDirection.Y,
-        Parent = SidebarTop,
+        ScrollingDirection = Enum.ScrollingDirection.Y, Parent = SidebarTop,
     })
     new("UIListLayout", { Padding = UDim.new(0, 4), Parent = TabList })
 
-    -- PLAYER PANEL (Discord-style) ----------------------------------------
+    -- PLAYER PANEL (Discord-style, no green dot) --------------------------
     local PlayerPanel = new("Frame", {
-        BackgroundColor3 = Theme.Element,
-        BackgroundTransparency = 0.4,
+        BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.4,
         Position = UDim2.new(0, 8, 1, -playerPanelHeight + 4),
         Size = UDim2.new(1, -16, 0, playerPanelHeight - 12),
         Parent = Sidebar,
@@ -788,7 +1095,6 @@ function Phantom:CreateWindow(settings)
     corner(PlayerPanel, 12)
     stroke(PlayerPanel, Theme.Stroke, 1)
 
-    -- Avatar circle
     local avatarHolder = new("Frame", {
         BackgroundColor3 = Theme.Bg,
         Position = UDim2.new(0, 6, 0.5, 0),
@@ -799,27 +1105,15 @@ function Phantom:CreateWindow(settings)
     corner(avatarHolder, 999)
     stroke(avatarHolder, Theme.Accent, 2)
 
-    local avatarImg = new("ImageLabel", {
+    new("ImageLabel", {
         BackgroundTransparency = 1,
         Size = UDim2.new(1, -4, 1, -4),
         Position = UDim2.new(0, 2, 0, 2),
         Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=150&h=150",
         Parent = avatarHolder,
-    })
-    corner(avatarImg, 999)
+    }).ClipsDescendants = true
+    -- (no green dot — FIX 3)
 
-    -- Online indicator dot
-    local onlineDot = new("Frame", {
-        BackgroundColor3 = Theme.Success,
-        Position = UDim2.new(1, -4, 1, -4),
-        AnchorPoint = Vector2.new(1, 1),
-        Size = UDim2.new(0, 10, 0, 10),
-        Parent = avatarHolder,
-    })
-    corner(onlineDot, 999)
-    stroke(onlineDot, Theme.Panel, 2)
-
-    -- Name + display name
     new("TextLabel", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 50, 0, 8),
@@ -828,8 +1122,7 @@ function Phantom:CreateWindow(settings)
         TextColor3 = Theme.Text,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
-        Text = LocalPlayer.DisplayName,
-        Parent = PlayerPanel,
+        Text = LocalPlayer.DisplayName, Parent = PlayerPanel,
     })
     new("TextLabel", {
         BackgroundTransparency = 1,
@@ -839,8 +1132,7 @@ function Phantom:CreateWindow(settings)
         TextColor3 = Theme.TextDim,
         TextXAlignment = Enum.TextXAlignment.Left,
         TextTruncate = Enum.TextTruncate.AtEnd,
-        Text = "@" .. LocalPlayer.Name,
-        Parent = PlayerPanel,
+        Text = "@" .. LocalPlayer.Name, Parent = PlayerPanel,
     })
 
     -- Content -------------------------------------------------------------
@@ -848,78 +1140,78 @@ function Phantom:CreateWindow(settings)
         BackgroundTransparency = 1,
         Position = UDim2.new(0, sidebarWidth, 0, 0),
         Size = UDim2.new(1, -sidebarWidth, 1, 0),
-        ClipsDescendants = true,
-        Parent = Body,
+        ClipsDescendants = true, Parent = Body,
     })
     pad(Content, 8, 8, 14, 14)
 
     local Pages = new("Frame", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Parent = Content,
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0), Parent = Content,
     })
 
-    -- Footer --------------------------------------------------------------
+    -- Footer
     local Footer = new("Frame", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 0, 1, -28),
-        Size = UDim2.new(1, 0, 0, 28),
-        Parent = Main,
+        Size = UDim2.new(1, 0, 0, 28), Parent = Main,
     })
     new("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
         Font = Enum.Font.Gotham, TextSize = 11,
         TextColor3 = Theme.TextDark,
-        Text = settings.LoadingSubtitle or ("Phantom v" .. Phantom.Version),
-        Parent = Footer,
+        Text = "Phantom v" .. Phantom.Version, Parent = Footer,
     })
 
     Topbar.Visible = false
     Body.Visible = false
     Footer.Visible = false
 
-    -- FLOATING ICON (when minimized) --------------------------------------
+    -- FLOATING ICON (when minimized, accent gradient -- FIX 12) -----------
     local floatSize = mobile and 60 or 50
     local FloatIcon = new("Frame", {
-        Name = "FloatIcon",
-        BackgroundColor3 = Theme.Bg,
+        Name = "FloatIcon", BackgroundColor3 = Theme.Accent,
         Size = UDim2.new(0, floatSize, 0, floatSize),
         Position = UDim2.new(0, 30, 0, 100),
-        BackgroundTransparency = 1,
-        Visible = false,
-        Parent = ScreenGui,
+        BackgroundTransparency = 1, Visible = false, Parent = ScreenGui,
     })
     corner(FloatIcon, 14)
-    local floatStroke = stroke(FloatIcon, Theme.StrokeAccent, 1, 0.3)
-    shadow(FloatIcon, 0.4)
-    gradient(FloatIcon, { Theme.BgGradient1, Theme.BgGradient2 }, 135)
-    local floatGlow = glow(FloatIcon, Theme.AccentGlow, 30, 0.6)
+    local floatStroke = stroke(FloatIcon, Theme.AccentBright, 1, 0.3)
+    shadow(FloatIcon, 0.3)
+    gradient(FloatIcon, { Theme.AccentBright, Theme.Accent, Theme.AccentDim }, 135)
+    local floatGlow = glow(FloatIcon, Theme.AccentGlow, 30, 0.5)
 
-    new("TextLabel", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
-        Font = Enum.Font.GothamBlack, TextSize = mobile and 26 or 22,
-        TextColor3 = Theme.AccentBright, Text = "P",
-        Parent = FloatIcon,
-    })
+    -- FIX 4: configurable float icon image
+    if Phantom.Config.FloatIconImage then
+        new("ImageLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, -8, 1, -8),
+            Position = UDim2.new(0.5, 0, 0.5, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            Image = Phantom.Config.FloatIconImage,
+            ScaleType = Enum.ScaleType.Fit, Parent = FloatIcon,
+        })
+    else
+        new("TextLabel", {
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+            Font = Enum.Font.GothamBlack, TextSize = mobile and 26 or 22,
+            TextColor3 = Theme.TextBright,
+            Text = Phantom.Config.LogoText or "P", Parent = FloatIcon,
+        })
+    end
+
     local FloatBtn = new("TextButton", {
-        BackgroundTransparency = 1,
-        Size = UDim2.new(1, 0, 1, 0),
+        BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
         Text = "", AutoButtonColor = false, Parent = FloatIcon,
     })
 
-    -- Pulsing glow on float icon
+    -- pulsing
     task.spawn(function()
         while floatGlow.Parent do
-            tween(floatGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.3 })
+            tween(floatGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.25 })
             task.wait(1.5)
-            tween(floatGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.7 })
+            tween(floatGlow, TweenInfo.new(1.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), { ImageTransparency = 0.6 })
             task.wait(1.5)
         end
     end)
 
-    -- Window state --------------------------------------------------------
     local minimized = false
     local debounce = false
     local resized = false
@@ -975,20 +1267,17 @@ function Phantom:CreateWindow(settings)
     makeDraggable(Main, Topbar)
     makeDraggable(FloatIcon, FloatBtn)
 
-    -- Search filter -------------------------------------------------------
+    -- Search filter
     local allElements = {}
     SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
         local q = string.lower(SearchInput.Text)
         for _, el in ipairs(allElements) do
-            if q == "" then
-                el.frame.Visible = true
-            else
-                el.frame.Visible = string.find(string.lower(el.name), q, 1, true) ~= nil
-            end
+            if q == "" then el.frame.Visible = true
+            else el.frame.Visible = string.find(string.lower(el.name), q, 1, true) ~= nil end
         end
     end)
 
-    -- Toggle keybind ------------------------------------------------------
+    -- Toggle keybind
     local toggleKey = settings.ToggleUIKeybind or Enum.KeyCode.K
     if type(toggleKey) == "string" then
         local ok = pcall(function() toggleKey = Enum.KeyCode[toggleKey] end)
@@ -1002,33 +1291,31 @@ function Phantom:CreateWindow(settings)
         end
     end)
 
-    -- LOADING ANIMATION ---------------------------------------------------
+    -- LOADING
     Main.Size = UDim2.new(0, windowOffset.X * 0.6, 0, 100)
     tween(Main, Anim.Bounce, { BackgroundTransparency = 0, Size = UDim2.new(0, windowOffset.X * 0.6, 0, 200) })
     tween(mainStroke, Anim.Smooth, { Transparency = 0 })
     task.wait(0.2)
-    tween(lLogo, Anim.Bounce, { BackgroundTransparency = 0 })
-    tween(lGlow, Anim.Smooth, { ImageTransparency = 0.4 })
+    if Phantom.Config.LogoImage then
+        lLogo.BackgroundTransparency = 0
+    end
     task.wait(0.15)
     tween(lTitle, Anim.Smooth, { TextTransparency = 0 })
     task.wait(0.1)
     tween(lSub, Anim.Smooth, { TextTransparency = 0.2 })
     task.wait(1.0)
     tween(lLogo, Anim.Smooth, { BackgroundTransparency = 1 })
-    tween(lGlow, Anim.Smooth, { ImageTransparency = 1 })
     tween(lTitle, Anim.Smooth, { TextTransparency = 1 })
     tween(lSub, Anim.Smooth, { TextTransparency = 1 })
     task.wait(0.3)
     LoadingFrame:Destroy()
     tween(Main, Anim.Smooth, { Size = windowSize })
     task.wait(0.3)
-    Topbar.Visible = true
-    Body.Visible = true
-    Footer.Visible = true
+    Topbar.Visible = true; Body.Visible = true; Footer.Visible = true
     Topbar.BackgroundTransparency = 1
     tween(Topbar, Anim.Smooth, { BackgroundTransparency = 0.4 })
 
-    -- Config saving setup -------------------------------------------------
+    -- Config saving setup
     local cfgEnabled  = settings.ConfigurationSaving and settings.ConfigurationSaving.Enabled
     local cfgFileName = settings.ConfigurationSaving and settings.ConfigurationSaving.FileName or "Phantom"
     local cfgPath = CFG_FOLDER .. "/" .. cfgFileName .. CFG_EXT
@@ -1078,14 +1365,9 @@ function Phantom:CreateWindow(settings)
     function Window:CreateTab(name)
         local tabIndex = #tabs + 1
         local TabBtn = new("TextButton", {
-            BackgroundColor3 = Theme.Element,
-            BackgroundTransparency = 1,
+            BackgroundColor3 = Theme.Element, BackgroundTransparency = 1,
             Size = UDim2.new(1, 0, 0, 36),
-            Font = Enum.Font.GothamMedium, TextSize = 13,
-            TextColor3 = Theme.TextDim,
-            TextXAlignment = Enum.TextXAlignment.Left,
-            Text = "", AutoButtonColor = false,
-            Parent = TabList,
+            Text = "", AutoButtonColor = false, Parent = TabList,
         })
         corner(TabBtn, 10)
 
@@ -1093,8 +1375,7 @@ function Phantom:CreateWindow(settings)
             BackgroundColor3 = Theme.Accent,
             Position = UDim2.new(0, 6, 0.5, 0),
             AnchorPoint = Vector2.new(0, 0.5),
-            Size = UDim2.new(0, 3, 0, 0),
-            Parent = TabBtn,
+            Size = UDim2.new(0, 3, 0, 0), Parent = TabBtn,
         })
         corner(indicator, 2)
         gradient(indicator, { Theme.AccentBright, Theme.AccentDim }, 90)
@@ -1106,23 +1387,19 @@ function Phantom:CreateWindow(settings)
             Font = Enum.Font.GothamMedium, TextSize = 13,
             TextColor3 = Theme.TextDim,
             TextXAlignment = Enum.TextXAlignment.Left,
-            Text = name,
-            Parent = TabBtn,
+            Text = name, Parent = TabBtn,
         })
 
         local Page = new("ScrollingFrame", {
-            BackgroundTransparency = 1,
-            Size = UDim2.new(1, 0, 1, 0),
+            BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
             Position = UDim2.new(0, 0, 0, 0),
             ScrollBarThickness = 3,
             ScrollBarImageColor3 = Theme.Accent,
             ScrollBarImageTransparency = 0.5,
-            BorderSizePixel = 0,
-            CanvasSize = UDim2.new(0, 0, 0, 0),
+            BorderSizePixel = 0, CanvasSize = UDim2.new(0, 0, 0, 0),
             AutomaticCanvasSize = Enum.AutomaticSize.Y,
             ScrollingDirection = Enum.ScrollingDirection.Y,
-            Visible = false,
-            Parent = Pages,
+            Visible = false, Parent = Pages,
         })
         new("UIListLayout", { Padding = UDim.new(0, 12), Parent = Page })
         pad(Page, 0, 12, 0, 0)
@@ -1131,10 +1408,8 @@ function Phantom:CreateWindow(settings)
             local prevIndex = currentPageIndex
             local direction = (tabIndex > prevIndex) and 1 or -1
             currentPageIndex = tabIndex
-
             for _, t in ipairs(tabs) do
                 if t.page.Visible and t.page ~= Page then
-                    -- Slide old page out
                     local oldPage = t.page
                     tween(oldPage, Anim.Page, { Position = UDim2.new(0, -direction * 30, 0, 0) })
                     task.delay(0.2, function() oldPage.Visible = false end)
@@ -1143,11 +1418,9 @@ function Phantom:CreateWindow(settings)
                 tween(t.label, Anim.Fast, { TextColor3 = Theme.TextDim })
                 tween(t.indicator, Anim.Smooth, { Size = UDim2.new(0, 3, 0, 0) })
             end
-            -- Slide new page in
             Page.Visible = true
             Page.Position = UDim2.new(0, direction * 30, 0, 0)
             tween(Page, Anim.Page, { Position = UDim2.new(0, 0, 0, 0) })
-
             tween(TabBtn, Anim.Fast, { BackgroundTransparency = 0.6, BackgroundColor3 = Theme.Element })
             tween(tabLabel, Anim.Fast, { TextColor3 = Theme.Text })
             tween(indicator, Anim.Bounce, { Size = UDim2.new(0, 3, 0, 18) })
@@ -1170,9 +1443,7 @@ function Phantom:CreateWindow(settings)
         local td = { btn = TabBtn, label = tabLabel, indicator = indicator, page = Page }
         table.insert(tabs, td)
         if not firstTab then
-            firstTab = true
-            currentPageIndex = tabIndex
-            Page.Visible = true
+            firstTab = true; currentPageIndex = tabIndex; Page.Visible = true
             tween(TabBtn, Anim.Fast, { BackgroundTransparency = 0.6, BackgroundColor3 = Theme.Element })
             tween(tabLabel, Anim.Fast, { TextColor3 = Theme.Text })
             tween(indicator, Anim.Bounce, { Size = UDim2.new(0, 3, 0, 18) })
@@ -1180,6 +1451,7 @@ function Phantom:CreateWindow(settings)
 
         local Tab = {}
         local currentSection = nil
+        local elementsInCurrentSection = 0
 
         local function ensureSection()
             if not currentSection then Tab:CreateSection("Main") end
@@ -1198,21 +1470,39 @@ function Phantom:CreateWindow(settings)
             end
         end
 
+        -- FIX 10: divider before each non-first element in a section
+        local function maybeAddDivider(parent)
+            if elementsInCurrentSection > 0 then
+                local d = new("Frame", {
+                    BackgroundColor3 = Theme.Stroke, BackgroundTransparency = 0.5,
+                    Size = UDim2.new(1, -8, 0, 1), BorderSizePixel = 0,
+                    Parent = parent,
+                })
+                gradient(d, { Theme.Stroke, Theme.StrokeAccent, Theme.Stroke }, 0,
+                    NumberSequence.new({
+                        NumberSequenceKeypoint.new(0, 1),
+                        NumberSequenceKeypoint.new(0.5, 0.4),
+                        NumberSequenceKeypoint.new(1, 1),
+                    }))
+                local sp = new("UIListLayout", { Parent = parent }); sp:Destroy() -- noop
+            end
+            elementsInCurrentSection = elementsInCurrentSection + 1
+        end
+
         ----------------------------------------------------------------
         -- Section (collapsible)
         ----------------------------------------------------------------
         function Tab:CreateSection(sectionName)
             local Section = new("Frame", {
-                BackgroundColor3 = Theme.Panel,
-                BackgroundTransparency = 0.3,
+                BackgroundColor3 = Theme.Panel, BackgroundTransparency = 0.3,
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                ClipsDescendants = true,
-                Parent = Page,
+                ClipsDescendants = true, Parent = Page,
             })
             corner(Section, 12)
             stroke(Section, Theme.Stroke, 1)
-            new("UIListLayout", { Padding = UDim.new(0, 8), Parent = Section })
+            gradient(Section, { Theme.PanelGradient1, Theme.PanelGradient2 }, 90)
+            new("UIListLayout", { Padding = UDim.new(0, 10), Parent = Section })
             pad(Section, 14, 14, 16, 16)
 
             local Header = new("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 22), Parent = Section })
@@ -1221,8 +1511,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Accent,
                 Position = UDim2.new(0, 0, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 4, 0, 16),
-                Parent = Header,
+                Size = UDim2.new(0, 4, 0, 16), Parent = Header,
             })
             corner(accent, 2)
             gradient(accent, { Theme.AccentBright, Theme.AccentDim }, 90)
@@ -1234,39 +1523,53 @@ function Phantom:CreateWindow(settings)
                 Font = Enum.Font.GothamBold, TextSize = 14,
                 TextColor3 = Theme.Text,
                 TextXAlignment = Enum.TextXAlignment.Left,
-                Text = sectionName,
-                Parent = Header,
+                Text = sectionName, Parent = Header,
             })
 
-            local chevron = new("TextLabel", {
+            -- Drawn chevron (down-pointing triangle made from rotated bars)
+            local chevHolder = new("Frame", {
                 BackgroundTransparency = 1,
                 Position = UDim2.new(1, -14, 0.5, 0),
                 AnchorPoint = Vector2.new(1, 0.5),
-                Size = UDim2.new(0, 14, 0, 14),
-                Font = Enum.Font.GothamBold, TextSize = 11,
-                TextColor3 = Theme.TextDim, Text = "▼",
-                Parent = Header,
+                Size = UDim2.new(0, 12, 0, 12), Parent = Header,
             })
+            local chL = new("Frame", {
+                BackgroundColor3 = Theme.TextDim, BorderSizePixel = 0,
+                Size = UDim2.new(0, 7, 0, 1.5),
+                Position = UDim2.new(0.5, -2, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Rotation = 45, Parent = chevHolder,
+            })
+            corner(chL, 1)
+            local chR = new("Frame", {
+                BackgroundColor3 = Theme.TextDim, BorderSizePixel = 0,
+                Size = UDim2.new(0, 7, 0, 1.5),
+                Position = UDim2.new(0.5, 2, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Rotation = -45, Parent = chevHolder,
+            })
+            corner(chR, 1)
 
             local headerBtn = new("TextButton", {
-                BackgroundTransparency = 1,
-                Size = UDim2.new(1, 0, 1, 0),
-                Text = "", AutoButtonColor = false,
-                Parent = Header,
+                BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
+                Text = "", AutoButtonColor = false, Parent = Header,
             })
 
             local collapsed = false
             headerBtn.MouseButton1Click:Connect(function()
                 collapsed = not collapsed
-                tween(chevron, Anim.Smooth, { Rotation = collapsed and -90 or 0 })
+                tween(chevHolder, Anim.Smooth, { Rotation = collapsed and -90 or 0 })
                 for _, c in ipairs(Section:GetChildren()) do
-                    if c ~= Header and not c:IsA("UIListLayout") and not c:IsA("UIPadding") and not c:IsA("UICorner") and not c:IsA("UIStroke") then
+                    if c ~= Header and not c:IsA("UIListLayout")
+                       and not c:IsA("UIPadding") and not c:IsA("UICorner")
+                       and not c:IsA("UIStroke") and not c:IsA("UIGradient") then
                         c.Visible = not collapsed
                     end
                 end
             end)
 
             currentSection = Section
+            elementsInCurrentSection = 0
             return { Set = function(_, n) title.Text = n end }
         end
 
@@ -1275,13 +1578,14 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateButton(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local Btn = new("TextButton", {
                 BackgroundColor3 = Theme.Element,
                 Size = UDim2.new(1, 0, 0, 38),
                 Font = Enum.Font.GothamMedium, TextSize = 13,
                 TextColor3 = Theme.Text, Text = cfg.Name,
-                AutoButtonColor = false,
-                ClipsDescendants = true,
+                AutoButtonColor = false, ClipsDescendants = true,
                 Parent = container,
             })
             corner(Btn, 10)
@@ -1300,6 +1604,8 @@ function Phantom:CreateWindow(settings)
                 tween(btnGlow, Anim.Smooth, { ImageTransparency = 1 })
             end)
             attachRipple(Btn)
+            attachTooltip(Btn, cfg.Tooltip)
+
             Btn.MouseButton1Click:Connect(function()
                 local ok, err = pcall(cfg.Callback)
                 if not ok then Phantom:Notify({ Title = "Error", Content = tostring(err), Type = "error", Duration = 4 }) end
@@ -1315,6 +1621,8 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateToggle(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local obj = {
                 Type = "Toggle",
                 CurrentValue = cfg.CurrentValue or false,
@@ -1323,8 +1631,7 @@ function Phantom:CreateWindow(settings)
 
             local Frame = new("Frame", {
                 BackgroundColor3 = Theme.Element,
-                Size = UDim2.new(1, 0, 0, 38),
-                Parent = container,
+                Size = UDim2.new(1, 0, 0, 38), Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -1343,16 +1650,14 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Bg,
                 Position = UDim2.new(1, -52, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 40, 0, 22),
-                Parent = Frame,
+                Size = UDim2.new(0, 40, 0, 22), Parent = Frame,
             })
             corner(Switch, 11)
             local switchStroke = stroke(Switch, Theme.Stroke, 1)
 
             local SwitchFill = new("Frame", {
                 BackgroundColor3 = Theme.Accent,
-                Size = UDim2.new(0, 0, 1, 0),
-                Parent = Switch,
+                Size = UDim2.new(0, 0, 1, 0), Parent = Switch,
             })
             corner(SwitchFill, 11)
             gradient(SwitchFill, { Theme.AccentBright, Theme.Accent }, 0)
@@ -1361,8 +1666,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.TextDim,
                 Position = UDim2.new(0, 3, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 16, 0, 16),
-                Parent = Switch,
+                Size = UDim2.new(0, 16, 0, 16), Parent = Switch,
             })
             corner(Knob, 8)
             local knobGlow = glow(Knob, Theme.AccentGlow, 12, 1)
@@ -1404,6 +1708,8 @@ function Phantom:CreateWindow(settings)
                 saveConfig()
             end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(v)
                 obj.CurrentValue = v and true or false
                 apply(true)
@@ -1422,6 +1728,8 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateSlider(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local rmin, rmax = cfg.Range[1], cfg.Range[2]
             local obj = {
                 Type = "Slider",
@@ -1431,8 +1739,7 @@ function Phantom:CreateWindow(settings)
 
             local Frame = new("Frame", {
                 BackgroundColor3 = Theme.Element,
-                Size = UDim2.new(1, 0, 0, 60),
-                Parent = container,
+                Size = UDim2.new(1, 0, 0, 60), Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -1450,8 +1757,7 @@ function Phantom:CreateWindow(settings)
             local ValueBg = new("Frame", {
                 BackgroundColor3 = Theme.Bg,
                 Position = UDim2.new(1, -76, 0, 8),
-                Size = UDim2.new(0, 62, 0, 18),
-                Parent = Frame,
+                Size = UDim2.new(0, 62, 0, 18), Parent = Frame,
             })
             corner(ValueBg, 6)
             stroke(ValueBg, Theme.Stroke, 1)
@@ -1466,16 +1772,14 @@ function Phantom:CreateWindow(settings)
             local Track = new("Frame", {
                 BackgroundColor3 = Theme.Bg,
                 Position = UDim2.new(0, 14, 1, -18),
-                Size = UDim2.new(1, -28, 0, 6),
-                Parent = Frame,
+                Size = UDim2.new(1, -28, 0, 6), Parent = Frame,
             })
             corner(Track, 3)
             stroke(Track, Theme.Stroke, 1)
 
             local Fill = new("Frame", {
                 BackgroundColor3 = Theme.Accent,
-                Size = UDim2.new(0, 0, 1, 0),
-                Parent = Track,
+                Size = UDim2.new(0, 0, 1, 0), Parent = Track,
             })
             corner(Fill, 3)
             gradient(Fill, { Theme.AccentBright, Theme.Accent }, 0)
@@ -1484,8 +1788,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.TextBright,
                 Position = UDim2.new(0, 0, 0.5, 0),
                 AnchorPoint = Vector2.new(0.5, 0.5),
-                Size = UDim2.new(0, 14, 0, 14),
-                Parent = Track,
+                Size = UDim2.new(0, 14, 0, 14), Parent = Track,
             })
             corner(Knob, 7)
             stroke(Knob, Theme.Accent, 2)
@@ -1547,12 +1850,12 @@ function Phantom:CreateWindow(settings)
                 tween(frameStroke, Anim.Fast, { Color = Theme.Stroke })
             end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(v)
                 v = math.clamp(v, rmin, rmax)
-                obj.CurrentValue = v
-                setVisual(v, true)
-                pcall(cfg.Callback, v)
-                saveConfig()
+                obj.CurrentValue = v; setVisual(v, true)
+                pcall(cfg.Callback, v); saveConfig()
             end
 
             if cfg.Flag then Phantom.Flags[cfg.Flag] = obj end
@@ -1566,6 +1869,8 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateDropdown(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local obj = {
                 Type = "Dropdown",
                 CurrentOption = cfg.CurrentOption or {},
@@ -1577,8 +1882,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Element,
                 Size = UDim2.new(1, 0, 0, 0),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                ClipsDescendants = true,
-                Parent = container,
+                ClipsDescendants = true, Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -1603,14 +1907,31 @@ function Phantom:CreateWindow(settings)
                 TextXAlignment = Enum.TextXAlignment.Right,
                 Text = "None", Parent = Header,
             })
-            local Arrow = new("TextLabel", {
+
+            -- Drawn arrow
+            local arrowHolder = new("Frame", {
                 BackgroundTransparency = 1,
-                Position = UDim2.new(1, -22, 0, 0),
-                Size = UDim2.new(0, 14, 1, 0),
-                Font = Enum.Font.GothamBold, TextSize = 11,
-                TextColor3 = Theme.TextDim, Text = "▼",
-                Parent = Header,
+                Position = UDim2.new(1, -22, 0.5, 0),
+                AnchorPoint = Vector2.new(0, 0.5),
+                Size = UDim2.new(0, 12, 0, 12), Parent = Header,
             })
+            local aL = new("Frame", {
+                BackgroundColor3 = Theme.TextDim, BorderSizePixel = 0,
+                Size = UDim2.new(0, 7, 0, 1.5),
+                Position = UDim2.new(0.5, -2, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Rotation = 45, Parent = arrowHolder,
+            })
+            corner(aL, 1)
+            local aR = new("Frame", {
+                BackgroundColor3 = Theme.TextDim, BorderSizePixel = 0,
+                Size = UDim2.new(0, 7, 0, 1.5),
+                Position = UDim2.new(0.5, 2, 0.5, 0),
+                AnchorPoint = Vector2.new(0.5, 0.5),
+                Rotation = -45, Parent = arrowHolder,
+            })
+            corner(aR, 1)
+
             local Click = new("TextButton", {
                 BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, 0),
                 Text = "", AutoButtonColor = false, Parent = Header,
@@ -1650,7 +1971,7 @@ function Phantom:CreateWindow(settings)
             local function setOpen(s)
                 open = s
                 List.Visible = s
-                tween(Arrow, Anim.Smooth, { Rotation = s and 180 or 0 })
+                tween(arrowHolder, Anim.Smooth, { Rotation = s and 180 or 0 })
             end
             Click.MouseButton1Click:Connect(function() setOpen(not open) end)
 
@@ -1662,8 +1983,7 @@ function Phantom:CreateWindow(settings)
                 for _, opt in ipairs(cfg.Options or {}) do
                     local optFrame = new("Frame", {
                         BackgroundColor3 = Theme.Bg,
-                        Size = UDim2.new(1, 0, 0, 30),
-                        Parent = List,
+                        Size = UDim2.new(1, 0, 0, 30), Parent = List,
                     })
                     corner(optFrame, 8)
                     local optStroke = stroke(optFrame, Theme.Stroke, 1)
@@ -1704,6 +2024,8 @@ function Phantom:CreateWindow(settings)
             Frame.MouseEnter:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.StrokeAccent }) end)
             Frame.MouseLeave:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.Stroke }) end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(opts)
                 if type(opts) == "string" then opts = { opts } end
                 obj.CurrentOption = opts or {}
@@ -1712,8 +2034,7 @@ function Phantom:CreateWindow(settings)
                 saveConfig()
             end
             function obj:Refresh(newOpts)
-                cfg.Options = newOpts
-                buildOptions(); updateLabel()
+                cfg.Options = newOpts; buildOptions(); updateLabel()
             end
 
             if cfg.Flag then Phantom.Flags[cfg.Flag] = obj end
@@ -1727,16 +2048,16 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateInput(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local obj = {
-                Type = "Input",
-                CurrentValue = cfg.CurrentValue or "",
+                Type = "Input", CurrentValue = cfg.CurrentValue or "",
                 Callback = cfg.Callback,
             }
 
             local Frame = new("Frame", {
                 BackgroundColor3 = Theme.Element,
-                Size = UDim2.new(1, 0, 0, 38),
-                Parent = container,
+                Size = UDim2.new(1, 0, 0, 38), Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -1755,8 +2076,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Bg,
                 Position = UDim2.new(1, -176, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 162, 0, 26),
-                Parent = Frame,
+                Size = UDim2.new(0, 162, 0, 26), Parent = Frame,
             })
             corner(InputBg, 8)
             local inputStroke = stroke(InputBg, Theme.Stroke, 1)
@@ -1786,11 +2106,11 @@ function Phantom:CreateWindow(settings)
             Frame.MouseEnter:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.StrokeAccent }) end)
             Frame.MouseLeave:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.Stroke }) end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(v)
-                InputBox.Text = tostring(v)
-                obj.CurrentValue = tostring(v)
-                pcall(cfg.Callback, tostring(v))
-                saveConfig()
+                InputBox.Text = tostring(v); obj.CurrentValue = tostring(v)
+                pcall(cfg.Callback, tostring(v)); saveConfig()
             end
 
             if cfg.Flag then Phantom.Flags[cfg.Flag] = obj end
@@ -1804,6 +2124,8 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateKeybind(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local obj = {
                 Type = "Keybind",
                 CurrentKeybind = cfg.CurrentKeybind or "Q",
@@ -1812,8 +2134,7 @@ function Phantom:CreateWindow(settings)
 
             local Frame = new("Frame", {
                 BackgroundColor3 = Theme.Element,
-                Size = UDim2.new(1, 0, 0, 38),
-                Parent = container,
+                Size = UDim2.new(1, 0, 0, 38), Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -1834,8 +2155,7 @@ function Phantom:CreateWindow(settings)
                 AnchorPoint = Vector2.new(0, 0.5),
                 Size = UDim2.new(0, 68, 0, 26),
                 Font = Enum.Font.GothamBold, TextSize = 12,
-                TextColor3 = Theme.Accent,
-                Text = obj.CurrentKeybind,
+                TextColor3 = Theme.Accent, Text = obj.CurrentKeybind,
                 AutoButtonColor = false, Parent = Frame,
             })
             corner(KeyBox, 8)
@@ -1843,8 +2163,7 @@ function Phantom:CreateWindow(settings)
 
             local listening = false
             KeyBox.MouseButton1Click:Connect(function()
-                listening = true
-                KeyBox.Text = "..."
+                listening = true; KeyBox.Text = "..."
                 tween(keyStroke, Anim.Fast, { Color = Theme.Accent })
             end)
 
@@ -1865,10 +2184,11 @@ function Phantom:CreateWindow(settings)
             Frame.MouseEnter:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.StrokeAccent }) end)
             Frame.MouseLeave:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.Stroke }) end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(k)
                 obj.CurrentKeybind = tostring(k)
-                KeyBox.Text = obj.CurrentKeybind
-                saveConfig()
+                KeyBox.Text = obj.CurrentKeybind; saveConfig()
             end
 
             if cfg.Flag then Phantom.Flags[cfg.Flag] = obj end
@@ -1882,11 +2202,11 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateLabel(text)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local Frame = new("Frame", {
-                BackgroundColor3 = Theme.Element,
-                BackgroundTransparency = 0.3,
-                Size = UDim2.new(1, 0, 0, 30),
-                Parent = container,
+                BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.3,
+                Size = UDim2.new(1, 0, 0, 30), Parent = container,
             })
             corner(Frame, 8)
             stroke(Frame, Theme.Stroke, 1)
@@ -1894,8 +2214,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Accent,
                 Position = UDim2.new(0, 8, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 3, 0, 14),
-                Parent = Frame,
+                Size = UDim2.new(0, 3, 0, 14), Parent = Frame,
             })
             corner(accent, 2)
             gradient(accent, { Theme.AccentBright, Theme.AccentDim }, 90)
@@ -1918,12 +2237,12 @@ function Phantom:CreateWindow(settings)
         ----------------------------------------------------------------
         function Tab:CreateParagraph(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local Frame = new("Frame", {
-                BackgroundColor3 = Theme.Element,
-                BackgroundTransparency = 0.3,
+                BackgroundColor3 = Theme.Element, BackgroundTransparency = 0.3,
                 Size = UDim2.new(1, 0, 0, 0),
-                AutomaticSize = Enum.AutomaticSize.Y,
-                Parent = container,
+                AutomaticSize = Enum.AutomaticSize.Y, Parent = container,
             })
             corner(Frame, 8)
             stroke(Frame, Theme.Stroke, 1)
@@ -1953,30 +2272,12 @@ function Phantom:CreateWindow(settings)
         end
 
         ----------------------------------------------------------------
-        -- Divider
-        ----------------------------------------------------------------
-        function Tab:CreateDivider()
-            local container = ensureSection()
-            local Div = new("Frame", {
-                BackgroundColor3 = Theme.Stroke,
-                BackgroundTransparency = 0.4,
-                Size = UDim2.new(1, 0, 0, 1),
-                Parent = container,
-            })
-            gradient(Div, { Theme.Stroke, Theme.Accent, Theme.Stroke }, 0,
-                NumberSequence.new({
-                    NumberSequenceKeypoint.new(0, 1),
-                    NumberSequenceKeypoint.new(0.5, 0),
-                    NumberSequenceKeypoint.new(1, 1),
-                }))
-            return { Set = function() end }
-        end
-
-        ----------------------------------------------------------------
         -- Color Picker
         ----------------------------------------------------------------
         function Tab:CreateColorPicker(cfg)
             local container = ensureSection()
+            maybeAddDivider(container)
+
             local obj = {
                 Type = "ColorPicker",
                 Color = cfg.Color or Color3.fromRGB(0, 170, 255),
@@ -1987,8 +2288,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Theme.Element,
                 Size = UDim2.new(1, 0, 0, 38),
                 AutomaticSize = Enum.AutomaticSize.Y,
-                ClipsDescendants = true,
-                Parent = container,
+                ClipsDescendants = true, Parent = container,
             })
             corner(Frame, 10)
             local frameStroke = stroke(Frame, Theme.Stroke, 1)
@@ -2007,8 +2307,7 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = obj.Color,
                 Position = UDim2.new(1, -38, 0.5, 0),
                 AnchorPoint = Vector2.new(0, 0.5),
-                Size = UDim2.new(0, 26, 0, 22),
-                Parent = Header,
+                Size = UDim2.new(0, 26, 0, 22), Parent = Header,
             })
             corner(Swatch, 8)
             stroke(Swatch, Theme.Stroke, 1)
@@ -2027,32 +2326,27 @@ function Phantom:CreateWindow(settings)
 
             local SVBox = new("Frame", {
                 BackgroundColor3 = Color3.fromHSV(0, 1, 1),
-                Size = UDim2.new(0, 130, 0, 110),
-                Parent = Body,
+                Size = UDim2.new(0, 130, 0, 110), Parent = Body,
             })
             corner(SVBox, 8)
             stroke(SVBox, Theme.Stroke, 1)
             new("UIGradient", {
                 Color = ColorSequence.new(Color3.fromRGB(255, 255, 255), Color3.fromRGB(255, 255, 255)),
-                Transparency = NumberSequence.new(0, 1),
-                Parent = SVBox,
+                Transparency = NumberSequence.new(0, 1), Parent = SVBox,
             })
             local svDark = new("Frame", {
                 BackgroundColor3 = Color3.new(0, 0, 0),
-                Size = UDim2.new(1, 0, 1, 0),
-                BorderSizePixel = 0, Parent = SVBox,
+                Size = UDim2.new(1, 0, 1, 0), BorderSizePixel = 0, Parent = SVBox,
             })
             corner(svDark, 8)
             new("UIGradient", {
                 Color = ColorSequence.new(Color3.new(0, 0, 0), Color3.new(0, 0, 0)),
-                Transparency = NumberSequence.new(1, 0),
-                Rotation = 90, Parent = svDark,
+                Transparency = NumberSequence.new(1, 0), Rotation = 90, Parent = svDark,
             })
             local svKnob = new("Frame", {
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                 Size = UDim2.new(0, 10, 0, 10),
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Parent = SVBox,
+                AnchorPoint = Vector2.new(0.5, 0.5), Parent = SVBox,
             })
             corner(svKnob, 5)
             stroke(svKnob, Theme.Bg, 2)
@@ -2060,8 +2354,7 @@ function Phantom:CreateWindow(settings)
             local HueBar = new("Frame", {
                 BackgroundColor3 = Color3.new(1, 1, 1),
                 Position = UDim2.new(0, 140, 0, 0),
-                Size = UDim2.new(1, -140, 0, 110),
-                Parent = Body,
+                Size = UDim2.new(1, -140, 0, 110), Parent = Body,
             })
             corner(HueBar, 8)
             stroke(HueBar, Theme.Stroke, 1)
@@ -2081,16 +2374,14 @@ function Phantom:CreateWindow(settings)
                 BackgroundColor3 = Color3.fromRGB(255, 255, 255),
                 Size = UDim2.new(1, 4, 0, 3),
                 Position = UDim2.new(0.5, 0, 0, 0),
-                AnchorPoint = Vector2.new(0.5, 0.5),
-                Parent = HueBar,
+                AnchorPoint = Vector2.new(0.5, 0.5), Parent = HueBar,
             })
             corner(hueKnob, 2)
 
             local h, s, v = obj.Color:ToHSV()
             local function applyColor()
                 local c = Color3.fromHSV(h, s, v)
-                obj.Color = c
-                Swatch.BackgroundColor3 = c
+                obj.Color = c; Swatch.BackgroundColor3 = c
                 SVBox.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
                 svKnob.Position = UDim2.new(s, 0, 1 - v, 0)
                 hueKnob.Position = UDim2.new(0.5, 0, h, 0)
@@ -2138,11 +2429,11 @@ function Phantom:CreateWindow(settings)
             Frame.MouseEnter:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.StrokeAccent }) end)
             Frame.MouseLeave:Connect(function() tween(frameStroke, Anim.Fast, { Color = Theme.Stroke }) end)
 
+            attachTooltip(Frame, cfg.Tooltip)
+
             function obj:Set(c)
-                obj.Color = c
-                h, s, v = c:ToHSV()
-                applyColor()
-                saveConfig()
+                obj.Color = c; h, s, v = c:ToHSV()
+                applyColor(); saveConfig()
             end
 
             if cfg.Flag then Phantom.Flags[cfg.Flag] = obj end
@@ -2163,7 +2454,7 @@ function Phantom:CreateWindow(settings)
         end
     end
 
-    -- BUILT-IN SETTINGS TAB ----------------------------------------------
+    -- BUILT-IN SETTINGS TAB
     task.delay(0.1, function()
         local SettingsTab = Window:CreateTab("Settings")
         SettingsTab:CreateSection("Theme")
@@ -2174,6 +2465,7 @@ function Phantom:CreateWindow(settings)
             Options = themeOptions,
             CurrentOption = settings.Theme or "Default",
             MultipleOptions = false,
+            Tooltip = "Switch the accent color scheme",
             Callback = function(opt)
                 if opt and opt[1] then Window:ModifyTheme(opt[1]) end
             end,
@@ -2182,6 +2474,7 @@ function Phantom:CreateWindow(settings)
         SettingsTab:CreateSection("Window")
         SettingsTab:CreateButton({
             Name = "Reset Window Size",
+            Tooltip = "Restore the default window dimensions",
             Callback = function()
                 resized = false
                 tween(Main, Anim.Smooth, { Size = windowSize })
@@ -2189,11 +2482,15 @@ function Phantom:CreateWindow(settings)
         })
         SettingsTab:CreateButton({
             Name = "Center Window",
+            Tooltip = "Move the window to the center of the screen",
             Callback = function()
-                tween(Main, Anim.Smooth, {
-                    Position = UDim2.new(0.5, 0, 0.5, 0),
-                })
+                tween(Main, Anim.Smooth, { Position = UDim2.new(0.5, 0, 0.5, 0) })
             end,
+        })
+        SettingsTab:CreateToggle({
+            Name = "Tooltips",
+            CurrentValue = Phantom.Config.TooltipsEnabled,
+            Callback = function(v) Phantom.Config.TooltipsEnabled = v end,
         })
 
         SettingsTab:CreateSection("Info")
@@ -2210,15 +2507,19 @@ end
 function Phantom:LoadConfiguration() end
 function Phantom:SaveConfiguration() end
 function Phantom:Destroy()
-    for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui.Name == "PhantomUI" or gui.Name == "PhantomNotifications" or gui.Name == "PhantomKey" then gui:Destroy() end
-    end
-    pcall(function()
-        if gethui then
-            for _, gui in ipairs(gethui():GetChildren()) do
-                if gui.Name == "PhantomUI" or gui.Name == "PhantomNotifications" or gui.Name == "PhantomKey" then gui:Destroy() end
+    local function nuke(parent)
+        for _, gui in ipairs(parent:GetChildren()) do
+            if gui.Name == "PhantomUI" or gui.Name == "PhantomNotifications"
+            or gui.Name == "PhantomKey" or gui.Name == "PhantomTooltip" then
+                gui:Destroy()
             end
         end
+    end
+    pcall(function() nuke(CoreGui) end)
+    pcall(function() if gethui then nuke(gethui()) end end)
+    pcall(function()
+        local pg = LocalPlayer:FindFirstChild("PlayerGui")
+        if pg then nuke(pg) end
     end)
 end
 
