@@ -464,44 +464,4 @@ if defaultConfig then
 end
 
 print("[Phantom] ✅ Część 3 załadowana (Config Manager)")
-local Phantom = loadstring(game:HttpGet("TU_TWÓJ_RAW_URL"))()
-
--- Opcjonalnie ustaw ikonę (jeśli masz URL do ducha):
--- Phantom:SetLibraryIcon("https://link.do.ikony.png")
-
-local Window = Phantom:CreateWindow({
-    Name = "Phantom Hub",
-    Size = UDim2.new(0, 600, 0, 400)
-})
-local Phantom = loadstring(game:HttpGet("..."))()
-
-local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
-
-local MainTab = Window:AddTab("Main")
-local VisualsTab = Window:AddTab("Visuals")
-local ConfigTab = Window:AddTab("Config")
-
--- na razie tab są puste, ale zaraz część 6 da Ci AddButton itd.
-local Phantom = loadstring(game:HttpGet("TWÓJ_RAW_URL"))()
-
-local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
-
-local MainTab = Window:AddTab("Main")
-
-MainTab:AddLabel("Witaj w Phantom UI!")
-MainTab:AddLabel("To jest najlepsza biblioteka.")
-
-MainTab:AddButton("Kliknij mnie", function()
-    print("Przycisk działa!")
-end)
-
-MainTab:AddToggle({
-    Text = "Auto Farm",
-    Default = false
-}, function(state)
-    if state then
-        print("Auto Farm: WŁĄCZONY")
-    else
-        print("Auto Farm: WYŁĄCZONY")
-    end
-end)
+return Phantom
