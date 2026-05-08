@@ -1,165 +1,507 @@
 --[[
-    P H A N T O M  U I  L I B R A R Y | V2 PROFESSIONAL
-    --------------------------------------------------
-    ETAP 1: CORE ENGINE & VISUAL FOUNDATION
-    --------------------------------------------------
-    - Zoptymalizowana struktura pod loadstring.
-    - Centralne zarządzanie opóźnieniami (waits).
-    - Adaptacyjny system motywów Ghost-Neon.
---]]
+    ██████╗ ██╗  ██╗ █████╗ ███╗   ██╗████████╗ ██████╗ ███╗   ███╗
+    ██╔══██╗██║  ██║██╔══██╗████╗  ██║╚══██╔══╝██╔═══██╗████╗ ████║
+    ██████╔╝███████║███████║██╔██╗ ██║   ██║   ██║   ██║██╔████╔██║
+    ██╔═══╝ ██╔══██║██╔══██║██║╚██╗██║   ██║   ██║   ██║██║╚██╔╝██║
+    ██║     ██║  ██║██║  ██║██║ ╚████║   ██║   ╚██████╔╝██║ ╚═╝ ██║
+    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝
 
-local Phantom = {}
-Phantom.__index = Phantom
+    Phantom UI Library – Part 1/40: Core, Security & Theme
+    Autor: Ty
+    Środowisko: Executory Roblox (Synapse, Krnl, Fluxus itp.)
+    Opis: Fundament pod najlepszą bibliotekę UI na świecie.
+]]
 
---========================================================================
--- [1] GLOBAL CONFIGURATION (Zmieniaj tutaj wszystko)
---========================================================================
-Phantom.Settings = {
-    Waits = {
-        Initialize = 0.15,     -- Czas przed startem
-        WindowFade = 0.5,      -- Animacja otwierania okna
-        ElementFade = 0.3,     -- Pojawianie się przycisków
-        RippleSpeed = 0.45,    -- Efekt kliknięcia
-        TabSwitch = 0.2,       -- Przełączanie zakładek
-    },
-    Theme = {
-        Background = Color3.fromRGB(13, 13, 15),
-        Sidebar = Color3.fromRGB(18, 18, 22),
-        Accent = Color3.fromRGB(0, 170, 255),       -- Twój Neon Blue
-        Border = Color3.fromRGB(40, 40, 45),
-        TextMain = Color3.fromRGB(255, 255, 255),
-        TextMuted = Color3.fromRGB(160, 160, 165),
-    },
-    Assets = {
-        GhostIcon = "rbxassetid://93557513631375",  -- Twoje poprawne Image ID
-        GlowShadow = "rbxassetid://5028857084"
-    }
+-- ====================== GLOBALNY OBIEKT PHANTOM ======================
+local Phantom = {
+    Version = "1.0.0-dev",
+    Name = "Phantom",
+    Environment = "Unknown",
+    Loaded = false,
+    SecureMode = true,
+    Theme = {}
 }
 
---========================================================================
--- [2] INTERNAL UTILITIES (Silnik animacji i logiki)
---========================================================================
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
-
-local Utils = {}
-
-function Utils:Tween(obj, info, prop)
-    local t = TweenService:Create(obj, TweenInfo.new(unpack(info)), prop)
-    t:Play()
-    return t
+-- ====================== WYKRYWANIE ŚRODOWISKA ======================
+local function detectEnvironment()
+    local env = "Unknown"
+    if syn and syn.protect_gui then
+        env = "Synapse"
+    elseif krnl and krnl.protect_gui then
+        env = "Krnl"
+    elseif fluxus and fluxus.protect_gui then
+        env = "Fluxus"
+    elseif getexecutorname then
+        env = getexecutorname()
+    elseif game:GetService("RunService"):IsStudio() then
+        env = "Roblox Studio"
+    end
+    return env
 end
+Phantom.Environment = detectEnvironment()
 
-function Utils:MakeDraggable(gui, dragPart)
-    local dragging, dragInput, dragStart, startPos
-    dragPart.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = gui.Position
+-- ====================== SYSTEM USŁUG (SERVICE LOCATOR) ======================
+-- Używamy cloneref dla bezpieczeństwa (ukrycie przed antycheatami)
+local Services = {}
+local function getService(serviceName)
+    if Services[serviceName] then
+        return Services[serviceName]
+    end
+
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
+    end)
+    if not success then return nil end
+
+    -- Dodatkowe zabezpieczenie: cloneref jeśli dostępny (większość executorów)
+    local protectedService = service
+    if cloneref and type(cloneref) == "function" then
+        local cloneSuccess, cloned = pcall(cloneref, service)
+        if cloneSuccess then
+            protectedService = cloned
         end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    elseif hookfunction and type(hookfunction) == "function" then
+        -- Alternatywa dla executorów bez cloneref (np. stare Krnl)
+        protectedService = service
+    end
+
+    Services[serviceName] = protectedService
+    return protectedService
+end
+Phantom.GetService = getService
+
+-- ====================== BEZPIECZNE WYKONYWANIE (CALLBACK SAFETY) ======================
+function Phantom.CallSafely(callback, ...)
+    local args = {...}
+    local success, result = pcall(callback, unpack(args))
+    if not success then
+        if Phantom.SecureMode then
+            warn("[Phantom] Blokada błędu (secure mode): " .. tostring(result))
+        else
+            error("[Phantom] Błąd callbacku: " .. tostring(result), 2)
         end
-    end)
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
+    end
+    return success, result
 end
 
---========================================================================
--- [3] WINDOW CREATION (Główna konstrukcja)
---========================================================================
-function Phantom:CreateWindow(options)
-    local Config = Phantom.Settings
-    options = options or {}
-    
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "Phantom_" .. math.random(100, 999)
-    ScreenGui.Parent = (RunService:IsStudio() and game.Players.LocalPlayer:WaitForChild("PlayerGui") or CoreGui)
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+-- ====================== BEZPIECZNE POWIADOMIENIA ======================
+function Phantom.SecureNotify(title, text, duration)
+    local StarterGui = getService("StarterGui")
+    if not StarterGui then return end
 
-    -- Główny Kontener
-    local Main = Instance.new("Frame")
-    Main.Name = "Main"
-    Main.Parent = ScreenGui
-    Main.Size = UDim2.new(0, 620, 0, 420)
-    Main.Position = UDim2.new(0.5, -310, 0.5, -210)
-    Main.BackgroundColor3 = Config.Theme.Background
-    Main.BorderSizePixel = 0
-    Main.ClipsDescendants = true
-
-    local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 10)
-    MainCorner.Parent = Main
-
-    local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Config.Theme.Border
-    MainStroke.Thickness = 1.2
-    MainStroke.Parent = Main
-
-    -- Pasek Boczny (Sidebar)
-    local Sidebar = Instance.new("Frame")
-    Sidebar.Name = "Sidebar"
-    Sidebar.Parent = Main
-    Sidebar.Size = UDim2.new(0, 180, 1, 0)
-    Sidebar.BackgroundColor3 = Config.Theme.Sidebar
-    Sidebar.BorderSizePixel = 0
-
-    local SidebarLine = Instance.new("Frame")
-    SidebarLine.Size = UDim2.new(0, 1, 1, 0)
-    SidebarLine.Position = UDim2.new(1, 0, 0, 0)
-    SidebarLine.BackgroundColor3 = Config.Theme.Border
-    SidebarLine.BorderSizePixel = 0
-    SidebarLine.Parent = Sidebar
-
-    -- Nagłówek i Twoja Ikonka
-    local Header = Instance.new("Frame")
-    Header.Name = "Header"
-    Header.Parent = Sidebar
-    Header.Size = UDim2.new(1, 0, 0, 80)
-    Header.BackgroundTransparency = 1
-
-    local Icon = Instance.new("ImageLabel")
-    Icon.Name = "Icon"
-    Icon.Parent = Header
-    Icon.Size = UDim2.new(0, 45, 0, 45)
-    Icon.Position = UDim2.new(0, 15, 0, 18)
-    Icon.Image = options.Icon or Config.Assets.GhostIcon
-    Icon.BackgroundTransparency = 1
-    Icon.ScaleType = Enum.ScaleType.Fit
-
-    local Title = Instance.new("TextLabel")
-    Title.Name = "Title"
-    Title.Parent = Header
-    Title.Size = UDim2.new(1, -70, 0, 20)
-    Title.Position = UDim2.new(0, 68, 0, 22)
-    Title.Text = options.Name or "PHANTOM"
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.TextMain
-    Title.TextSize = 17
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    Utils:MakeDraggable(Main, Header)
-
-    -- Kontener na elementy (Prawa strona)
-    local Container = Instance.new("Frame")
-    Container.Name = "Container"
-    Container.Parent = Main
-    Container.Position = UDim2.new(0, 181, 0, 0)
-    Container.Size = UDim2.new(1, -181, 1, 0)
-    Container.BackgroundTransparency = 1
-
-    return {
-        GUI = ScreenGui,
-        Tabs = {}
-    }
+    local success, result = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "Phantom",
+            Text = text or "",
+            Duration = duration or 5,
+            Button1 = "OK"
+        })
+    end)
+    if not success then
+        -- Fallback: zwykłe CoreGui (dla niektórych executorów)
+        pcall(function()
+            game:GetService("CoreGui"):SetCore("SendNotification", {
+                Title = title or "Phantom",
+                Text = text or "",
+                Duration = duration or 5
+            })
+        end)
+    end
 end
 
+-- ====================== ŁADOWANIE ASSETÓW Z TIMEOUTEM ======================
+function Phantom.LoadWithTimeout(url, timeout)
+    timeout = timeout or 10
+    local start = tick()
+    local asset
+
+    repeat
+        local success, result = pcall(function()
+            return game:HttpGet(url)
+        end)
+        if success then
+            asset = result
+            break
+        end
+        wait(0.1)
+    until tick() - start > timeout
+
+    return asset
+end
+
+-- ====================== MOTYW KOLORYSTYCZNY (PASUJĄCY DO IKONY DUCHA) ======================
+Phantom.Theme = {
+    -- Tła (głęboka czerń z szarym gradientem – jak góra ducha)
+    Background = Color3.fromRGB(18, 18, 22),
+    BackgroundGradientTop = Color3.fromRGB(30, 30, 35),  -- jaśniejszy szary na górę
+    Surface = Color3.fromRGB(25, 25, 30),
+    SurfaceLight = Color3.fromRGB(35, 35, 40),
+
+    -- Akcent (neonowy niebieski – oczy ducha)
+    Accent = Color3.fromRGB(0, 191, 255),      -- #00BFFF
+    AccentDark = Color3.fromRGB(0, 140, 200),
+    AccentGlow = Color3.fromRGB(80, 210, 255),  -- poświata
+
+    -- Tekst (czysty, czytelny)
+    TextPrimary = Color3.fromRGB(240, 240, 245),
+    TextSecondary = Color3.fromRGB(180, 180, 190),
+    TextDisabled = Color3.fromRGB(100, 100, 110),
+
+    -- Kontury i separatory
+    Border = Color3.fromRGB(45, 45, 50),
+    Divider = Color3.fromRGB(35, 35, 40),
+
+    -- Cień (do UIStroke lub efektów)
+    Shadow = Color3.fromRGB(0, 0, 0),
+
+    -- Półprzezroczystości (do overlayów, tła okien modalnych)
+    Overlay = Color3.fromRGB(0, 0, 0):Lerp(Color3.new(1,1,1), 0.4)
+}
+
+-- ====================== ZABEZPIECZENIE PRZED REINICJACJĄ ======================
+if _G.PhantomUI then
+    return _G.PhantomUI  -- Zwróć już załadowaną instancję
+end
+
+-- ====================== FINALIZACJA ======================
+Phantom.Loaded = true
+_G.PhantomUI = Phantom
+
+-- Placeholder pod przyszłe komponenty (części 2+)
+Phantom.Windows = {}
+Phantom.Notifications = {}
+Phantom.Connections = {}
+
+print("[Phantom] ✅ Część 1 załadowana. Środowisko: " .. Phantom.Environment)
 return Phantom
+--[[
+    Część 2/40: System Assetów (ikony, tekstury, gradienty)
+    - LoadImage(url) → ładuje obrazek jako decal i zapamiętuje
+    - GetImage(id)   → zwraca wcześniej załadowany obrazek
+    - SetLibraryIcon(id) → ustawia główną ikonę ducha (wczytaną wcześniej)
+    - Będzie używane przy tworzeniu okien, przycisków, avatarów itp.
+]]
+
+-- ====================== CACHE OBRAZÓW ======================
+Phantom.ImageCache = {}
+Phantom.LibraryIcon = nil -- ID w cache'u ustawiony przez SetLibraryIcon
+
+-- ====================== BEZPIECZNE POBIERANIE OBRAZU ======================
+function Phantom.LoadImage(url: string): string?
+    -- Sprawdź czy już mamy ten obraz (kluczem jest url)
+    if Phantom.ImageCache[url] then
+        return url
+    end
+
+    local success, imageData = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success or not imageData then
+        if Phantom.SecureMode then
+            warn("[Phantom] Nie udało się pobrać obrazu: " .. url)
+        end
+        return nil
+    end
+
+    -- Tworzymy tymczasowy obiekt Image, żeby uzyskać decal ID
+    local tempImage = Instance.new("ImageLabel")
+    tempImage.Visible = false
+    tempImage.Parent = game:GetService("CoreGui") or game:GetService("StarterGui")
+
+    local setSuccess = pcall(function()
+        tempImage.Image = imageData   -- dla większości executorów to powinno zadziałać
+    end)
+
+    if not setSuccess then
+        tempImage:Destroy()
+        warn("[Phantom] Executor nie obsługuje bezpośredniego przypisania Image z danych.")
+        return nil
+    end
+
+    -- Czekamy aż image się załaduje (max 2 sekundy)
+    local start = tick()
+    repeat wait(0.1) until tempImage.IsLoaded or tick() - start > 2
+
+    if not tempImage.IsLoaded then
+        tempImage:Destroy()
+        if Phantom.SecureMode then
+            warn("[Phantom] Obraz nie załadował się: " .. url)
+        end
+        return nil
+    end
+
+    -- Pobieramy identyfikator decala (rządzi "rbxassetid://...")
+    local assetId = tempImage.Image
+    tempImage:Destroy()
+
+    -- Cache'ujemy
+    Phantom.ImageCache[url] = assetId
+    return assetId
+end
+
+-- ====================== POBIERANIE Z CACHE'U ======================
+function Phantom.GetImage(urlOrId: string): string?
+    if Phantom.ImageCache[urlOrId] then
+        return Phantom.ImageCache[urlOrId]
+    end
+    -- Jeśli to już jakiś asset ID (rbxassetid://), zwróć
+    if urlOrId:sub(1,13) == "rbxassetid://" then
+        return urlOrId
+    end
+    return nil
+end
+
+-- ====================== USTAWIANIE IKONY BIBLIOTEKI ======================
+function Phantom.SetLibraryIcon(imageUrl: string)
+    local id = Phantom.LoadImage(imageUrl)
+    if id then
+        Phantom.LibraryIcon = id
+        print("[Phantom] ✅ Ikona biblioteki załadowana.")
+    else
+        warn("[Phantom] ⚠️ Nie udało się ustawić ikony – upewnij się, że URL jest poprawny.")
+    end
+end
+
+-- ====================== PLACEHOLDER: IKONA DOMYŚLNA ======================
+-- Jeśli nie ustawisz własnej, użyje "duszka" z generycznego placeholdera
+-- (możesz to zastąpić swoim linkiem później)
+if not Phantom.LibraryIcon then
+    -- Domyślny placeholder (pusty obrazek, aby nie crashować)
+    Phantom.DefaultIcon = "rbxassetid://0"  -- pusty asset
+end
+
+-- ====================== PRZYKŁAD UŻYCIA (do usunięcia w release) ======================
+-- Aby ustawić ikonę ducha (podmień URL na swój):
+-- Phantom.SetLibraryIcon("https://link.do.twojego/ducha.png")
+--[[
+    Część 3/40: System konfiguracji i zapisu (Config Manager)
+    - SaveConfig(name, data) → zapisuje dane do pliku .json
+    - LoadConfig(name)        → wczytuje zapisane dane
+    - GetConfigs()            → lista dostępnych konfigów
+    - OverrideSetting(path, value) → nadpisuje konkretną ścieżkę w storedData
+    - GetSetting(path)        → odczytuje wartość z storedData
+    - Obsługuje szyfrowanie (jeśli executor daje syn.crypt)
+    - Automatycznie tworzy folder Phantom/Configs/
+]]
+
+-- ====================== WYKRYWANIE DOSTĘPNYCH FUNKCJI EXECUTORA ======================
+local hasWriteFile = pcall(function() return writefile end)
+local hasReadFile = pcall(function() return readfile end)
+local hasMakeFolder = pcall(function() return makefolder end)
+local hasIsFile = pcall(function() return isfile end)
+local hasDelFile = pcall(function() return delfile end)
+local hasCrypt = pcall(function() return (syn and syn.crypt) end) and syn and syn.crypt
+
+-- Fallbacki dla braku funkcji (wtedy użyjemy tylko przechowywania w pamięci)
+if not hasWriteFile or not hasReadFile or not hasMakeFolder then
+    warn("[Phantom] ⚠️ Executor nie udostępnia funkcji plikowych – config działa tylko w sesji.")
+end
+
+-- ====================== INTERFEJS CONFIG MANAGERA ======================
+Phantom.Config = {}
+Phantom.Config.FolderName = "Phantom/Configs"
+Phantom.Config.Encrypt = hasCrypt  -- automatycznie szyfruj, jeśli dostępne
+
+-- ====================== TWORZENIE FOLDERU ======================
+if hasMakeFolder then
+    makefolder(Phantom.Config.FolderName)
+end
+
+-- ====================== POMOCNICZA FUNKCJA: SZYFROWANIE ======================
+local function encrypt(data)
+    if Phantom.Config.Encrypt and hasCrypt then
+        local success, encrypted = pcall(syn.crypt.encrypt, data, "PhantomKey")
+        if success then return encrypted end
+    end
+    return data  -- brak szyfrowania lub błąd
+end
+
+local function decrypt(data)
+    if Phantom.Config.Encrypt and hasCrypt then
+        local success, decrypted = pcall(syn.crypt.decrypt, data, "PhantomKey")
+        if success then return decrypted end
+    end
+    return data  -- brak szyfrowania lub dane niezaszyfrowane
+end
+
+-- ====================== ZAPISYWANIE KONFIGURACJI ======================
+function Phantom.Config.SaveConfig(name, data)
+    if not hasWriteFile then
+        warn("[Phantom] Nie można zapisać – brak writefile.")
+        return false
+    end
+
+    local success, json
+    if pcall(function() return game:GetService("HttpService"):JSONEncode(data) end) then
+        json = game:GetService("HttpService"):JSONEncode(data)
+    else
+        -- Fallback: ręczna serializacja (ograniczona, ale działa dla prostych tabel)
+        json = "return " .. tostring(data)
+    end
+
+    local filePath = Phantom.Config.FolderName .. "/" .. name .. ".json"
+    local content = encrypt(json)
+
+    local writeSuccess, err = pcall(function()
+        writefile(filePath, content)
+    end)
+
+    if not writeSuccess then
+        warn("[Phantom] Błąd zapisu config '" .. name .. "': " .. tostring(err))
+        return false
+    end
+    return true
+end
+
+-- ====================== WCZYTYWANIE KONFIGURACJI ======================
+function Phantom.Config.LoadConfig(name)
+    if not hasReadFile then
+        warn("[Phantom] Nie można wczytać – brak readfile.")
+        return nil
+    end
+
+    local filePath = Phantom.Config.FolderName .. "/" .. name .. ".json"
+    local isFile = pcall(isfile, filePath)
+    if not isFile then return nil end
+
+    local success, content = pcall(readfile, filePath)
+    if not success then
+        warn("[Phantom] Nie udało się odczytać pliku: " .. filePath)
+        return nil
+    end
+
+    local decrypted = decrypt(content)
+
+    -- Parsowanie JSON
+    local data
+    if pcall(function() return game:GetService("HttpService"):JSONDecode(decrypted) end) then
+        data = game:GetService("HttpService"):JSONDecode(decrypted)
+    else
+        -- Fallback: ręczne parsowanie (jeśli wcześniej użyto tostring)
+        local func, err = loadstring(decrypted)
+        if func then
+            data = func()
+        else
+            warn("[Phantom] Nieprawidłowy format config '" .. name .. "'.")
+            return nil
+        end
+    end
+    return data
+end
+
+-- ====================== LISTOWANIE WSZYSTKICH KONFIGÓW ======================
+function Phantom.Config.GetConfigs()
+    local configs = {}
+    if not hasIsFile then return configs end
+
+    local folderPath = Phantom.Config.FolderName
+    -- Próbujemy listować pliki (executory często nie mają tej funkcji, więc opcjonalnie)
+    local listFiles = pcall(function()
+        local files = listfiles(folderPath)
+        if files then
+            for _, file in ipairs(files) do
+                if file:sub(-5) == ".json" then
+                    local name = file:match("([^/]+)%.json$")
+                    if name then
+                        table.insert(configs, name)
+                    end
+                end
+            end
+        end
+    end)
+    return configs
+end
+
+-- ====================== ZARZĄDZANIE ŚCIEŻKAMI USTAWIEŃ ======================
+-- Stored data dla bieżącej sesji (jako podstawa do OverrideSetting)
+Phantom.Config.StoredData = {}
+
+function Phantom.Config.SetStoredData(data)
+    Phantom.Config.StoredData = data or {}
+end
+
+function Phantom.Config.OverrideSetting(path, value)
+    -- path np. "Main.Toggle1" lub "MyWindow.Slider"
+    local keys = {}
+    for part in path:gmatch("[^%.]+") do
+        table.insert(keys, part)
+    end
+
+    local current = Phantom.Config.StoredData
+    for i = 1, #keys - 1 do
+        local k = keys[i]
+        if type(current[k]) ~= "table" then
+            current[k] = {}
+        end
+        current = current[k]
+    end
+    current[keys[#keys]] = value
+end
+
+function Phantom.Config.GetSetting(path)
+    local keys = {}
+    for part in path:gmatch("[^%.]+") do
+        table.insert(keys, part)
+    end
+
+    local current = Phantom.Config.StoredData
+    for _, k in ipairs(keys) do
+        if type(current) == "table" and current[k] ~= nil then
+            current = current[k]
+        else
+            return nil
+        end
+    end
+    return current
+end
+
+-- ====================== INICJALIZACJA GLOBALNEGO CONFIGU ======================
+-- Ładujemy domyślną konfigurację "default" jeśli istnieje
+local defaultConfig = Phantom.Config.LoadConfig("default")
+if defaultConfig then
+    Phantom.Config.SetStoredData(defaultConfig)
+end
+
+print("[Phantom] ✅ Część 3 załadowana (Config Manager)")
+local Phantom = loadstring(game:HttpGet("TU_TWÓJ_RAW_URL"))()
+
+-- Opcjonalnie ustaw ikonę (jeśli masz URL do ducha):
+-- Phantom:SetLibraryIcon("https://link.do.ikony.png")
+
+local Window = Phantom:CreateWindow({
+    Name = "Phantom Hub",
+    Size = UDim2.new(0, 600, 0, 400)
+})
+local Phantom = loadstring(game:HttpGet("..."))()
+
+local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
+
+local MainTab = Window:AddTab("Main")
+local VisualsTab = Window:AddTab("Visuals")
+local ConfigTab = Window:AddTab("Config")
+
+-- na razie tab są puste, ale zaraz część 6 da Ci AddButton itd.
+local Phantom = loadstring(game:HttpGet("TWÓJ_RAW_URL"))()
+
+local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
+
+local MainTab = Window:AddTab("Main")
+
+MainTab:AddLabel("Witaj w Phantom UI!")
+MainTab:AddLabel("To jest najlepsza biblioteka.")
+
+MainTab:AddButton("Kliknij mnie", function()
+    print("Przycisk działa!")
+end)
+
+MainTab:AddToggle({
+    Text = "Auto Farm",
+    Default = false
+}, function(state)
+    if state then
+        print("Auto Farm: WŁĄCZONY")
+    else
+        print("Auto Farm: WYŁĄCZONY")
+    end
+end)
