@@ -1,3544 +1,507 @@
 --[[
-    P H A N T O M  P R I M E  |  U L T I M A T E  E D I T I O N
-    ---------------------------------------------------------
-    ETAP 1: THE ARCHITECT (Core System & Engine)
-    ---------------------------------------------------------
-    - Przeanalizowano: Rayfield, Fluent, Pepsi, MacLib, Discord.
-    - Implementacja: Detekcja Hardware, Global Config, Tween Engine.
---]]
+    ██████╗ ██╗  ██╗ █████╗ ███╗   ██╗████████╗ ██████╗ ███╗   ███╗
+    ██╔══██╗██║  ██║██╔══██╗████╗  ██║╚══██╔══╝██╔═══██╗████╗ ████║
+    ██████╔╝███████║███████║██╔██╗ ██║   ██║   ██║   ██║██╔████╔██║
+    ██╔═══╝ ██╔══██║██╔══██║██║╚██╗██║   ██║   ██║   ██║██║╚██╔╝██║
+    ██║     ██║  ██║██║  ██║██║ ╚████║   ██║   ╚██████╔╝██║ ╚═╝ ██║
+    ╚═╝     ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝  ╚═══╝   ╚═╝    ╚═════╝ ╚═╝     ╚═╝
 
---// Zabezpieczenie przed wielokrotnym ładowaniem
-if getgenv().PhantomLoaded then return end
-getgenv().PhantomLoaded = true
+    Phantom UI Library – Part 1/40: Core, Security & Theme
+    Autor: Ty
+    Środowisko: Executory Roblox (Synapse, Krnl, Fluxus itp.)
+    Opis: Fundament pod najlepszą bibliotekę UI na świecie.
+]]
 
+-- ====================== GLOBALNY OBIEKT PHANTOM ======================
 local Phantom = {
-    Connections = {},
-    Flags = {}, -- System flag dla Config Managera (jak w Rayfield)
-    Elements = {},
-    Themes = {},
-    IsMobile = game:GetService("UserInputService").TouchEnabled,
-    Device = "PC"
+    Version = "1.0.0-dev",
+    Name = "Phantom",
+    Environment = "Unknown",
+    Loaded = false,
+    SecureMode = true,
+    Theme = {}
 }
 
---// Detekcja urządzenia
-if Phantom.IsMobile then
-    Phantom.Device = "Mobile"
+-- ====================== WYKRYWANIE ŚRODOWISKA ======================
+local function detectEnvironment()
+    local env = "Unknown"
+    if syn and syn.protect_gui then
+        env = "Synapse"
+    elseif krnl and krnl.protect_gui then
+        env = "Krnl"
+    elseif fluxus and fluxus.protect_gui then
+        env = "Fluxus"
+    elseif getexecutorname then
+        env = getexecutorname()
+    elseif game:GetService("RunService"):IsStudio() then
+        env = "Roblox Studio"
+    end
+    return env
 end
+Phantom.Environment = detectEnvironment()
 
---========================================================================
--- [1] MASTER CONFIGURATION (Centralny Panel Sterowania)
---========================================================================
-Phantom.Config = {
-    Version = "1.0.0 Prime",
-    Prefix = "PHANTOM_",
-    Waits = {
-        Boot = 0.4,             -- Czas inicjalizacji
-        WindowOpen = 0.5,       -- Animacja wejścia UI
-        TabSwitch = 0.25,       -- Płynność zmiany zakładki
-        RenderElement = 0.04,   -- Czas między renderowaniem części (Smooth Load)
-        RippleEffect = 0.45,    -- Efekt kliknięcia
-        Notification = 5.0,     -- Żywotność powiadomień
-        SearchDebounce = 0.15   -- Opóźnienie wyszukiwarki
-    },
-    Theme = { -- Domyślny motyw "Ghost Neon"
-        Main = Color3.fromRGB(9, 9, 11),        -- Ciemne tło (Fluent style)
-        Secondary = Color3.fromRGB(13, 13, 16),   -- Panele boczne
-        Accent = Color3.fromRGB(0, 170, 255),    -- Twój Neon Blue
-        Outline = Color3.fromRGB(30, 30, 35),    -- Obramowania
-        Text = Color3.fromRGB(255, 255, 255),    -- Główny tekst
-        TextMuted = Color3.fromRGB(150, 150, 155) -- Opisy
-    },
-    Assets = {
-        GhostIcon = "rbxassetid://93557513631375",
-        Shadow = "rbxassetid://6015667320",
-        Circle = "rbxassetid://3570695787",
-        Blur = "rbxassetid://13358316834"
-    }
-}
-
---========================================================================
--- [2] INTERNAL UTILS (Silnik Wykonawczy)
---========================================================================
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
-
-local Utils = {}
-
--- Zaawansowany Tween z obsługą EasingStyle (Fluent/MacLib feel)
-function Utils:Tween(obj, prop, time, style, dir)
-    local info = TweenInfo.new(
-        time or 0.3, 
-        style or Enum.EasingStyle.Quart, 
-        dir or Enum.EasingDirection.Out
-    )
-    local tween = TweenService:Create(obj, info, prop)
-    tween:Play()
-    return tween
-end
-
--- System generowania unikalnych nazw (Ochrona przed detekcją)
-function Utils:GenerateID()
-    return HttpService:GenerateGUID(false):gsub("-", ""):sub(1, 12)
-end
-
--- Obsługa połączeń (Connection Manager - zapobiega lagom)
-function Utils:Connect(signal, callback)
-    local connection = signal:Connect(callback)
-    table.insert(Phantom.Connections, connection)
-    return connection
-end
-
-Phantom.Utils = Utils
-
--- Powitanie w konsoli (Dla profesjonalizmu)
-print("---------------------------------------")
-print("PHANTOM PRIME LOADED | Device: " .. Phantom.Device)
-print("Version: " .. Phantom.Config.Version)
-print("---------------------------------------")
-
-return Phantom
---========================================================================
--- [3] THE SHELL & CANVAS (Konstrukcja Okna i Struktura Warstw)
---========================================================================
-
-function Phantom:CreateWindow(options)
-    local Config = self.Config
-    local Utils = self.Utils
-    options = options or {}
-    
-    local TitleText = options.Name or "PHANTOM PRIME"
-    local SubText = options.SubName or "Ultimate Edition"
-
-    -- Główny Kontener GUI
-    local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = Utils:GenerateID()
-    ScreenGui.Parent = (game:GetService("RunService"):IsStudio() and game.Players.LocalPlayer:WaitForChild("PlayerGui") or game:GetService("CoreGui"))
-    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ScreenGui.DisplayOrder = 10
-    ScreenGui.ResetOnSpawn = false
-    
-    -- Ochrona przed Screenshotami (Style: Rayfield/Fluent)
-    if not game:GetService("RunService"):IsStudio() then
-        ScreenGui.IgnoreGuiInset = true
+-- ====================== SYSTEM USŁUG (SERVICE LOCATOR) ======================
+-- Używamy cloneref dla bezpieczeństwa (ukrycie przed antycheatami)
+local Services = {}
+local function getService(serviceName)
+    if Services[serviceName] then
+        return Services[serviceName]
     end
 
-    -- Main Frame
-    local Main = Instance.new("Frame")
-    Main.Name = "Main"
-    Main.Parent = ScreenGui
-    Main.Size = self.IsMobile and UDim2.new(0, 560, 0, 360) or UDim2.new(0, 620, 0, 420)
-    Main.Position = UDim2.new(0.5, -Main.Size.X.Offset/2, 0.5, -Main.Size.Y.Offset/2)
-    Main.BackgroundColor3 = Config.Theme.Main
-    Main.BorderSizePixel = 0
-    
-    local MainCorner = Instance.new("UICorner")
-    MainCorner.CornerRadius = UDim.new(0, 10)
-    MainCorner.Parent = Main
-
-    -- Shadow Glow (Efekt Głębi - Style: MacLib)
-    local Shadow = Instance.new("ImageLabel")
-    Shadow.Name = "Shadow"
-    Shadow.Parent = Main
-    Shadow.BackgroundTransparency = 1
-    Shadow.Position = UDim2.new(0, -15, 0, -15)
-    Shadow.Size = UDim2.new(1, 30, 1, 30)
-    Shadow.Image = Config.Assets.Shadow
-    Shadow.ImageColor3 = Color3.new(0, 0, 0)
-    Shadow.ImageTransparency = 0.4
-    Shadow.ZIndex = 0
-
-    -- Sidebar (Navigation)
-    local Sidebar = Instance.new("Frame")
-    Sidebar.Name = "Sidebar"
-    Sidebar.Parent = Main
-    Sidebar.Size = UDim2.new(0, 190, 1, 0)
-    Sidebar.BackgroundColor3 = Config.Theme.Secondary
-    Sidebar.BorderSizePixel = 0
-    Sidebar.ZIndex = 2
-    
-    local SidebarCorner = Instance.new("UICorner")
-    SidebarCorner.CornerRadius = UDim.new(0, 10)
-    SidebarCorner.Parent = Sidebar
-
-    -- Ukrywanie zaokrągleń Sidebaru po prawej (Seamless design)
-    local SidebarFix = Instance.new("Frame")
-    SidebarFix.Name = "Fix"
-    SidebarFix.Parent = Sidebar
-    SidebarFix.Size = UDim2.new(0, 20, 1, 0)
-    SidebarFix.Position = UDim2.new(1, -20, 0, 0)
-    SidebarFix.BackgroundColor3 = Config.Theme.Secondary
-    SidebarFix.BorderSizePixel = 0
-    SidebarFix.ZIndex = 1
-
-    -- Header (Logo & Name)
-    local Header = Instance.new("Frame")
-    Header.Name = "Header"
-    Header.Parent = Sidebar
-    Header.Size = UDim2.new(1, 0, 0, 80)
-    Header.BackgroundTransparency = 1
-    Header.ZIndex = 3
-
-    local Logo = Instance.new("ImageLabel")
-    Logo.Parent = Header
-    Logo.Size = UDim2.new(0, 45, 0, 45)
-    Logo.Position = UDim2.new(0, 15, 0, 18)
-    Logo.Image = Config.Assets.GhostIcon
-    Logo.ImageColor3 = Config.Theme.Accent
-    Logo.BackgroundTransparency = 1
-    Logo.ZIndex = 4
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Position = UDim2.new(0, 70, 0, 22)
-    Title.Size = UDim2.new(1, -75, 0, 20)
-    Title.Text = TitleText
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 16
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-    Title.ZIndex = 4
-
-    local SubTitle = Instance.new("TextLabel")
-    SubTitle.Parent = Header
-    SubTitle.Position = UDim2.new(0, 70, 0, 40)
-    SubTitle.Text = SubText
-    SubTitle.Font = Enum.Font.GothamMedium
-    SubTitle.TextColor3 = Config.Theme.TextMuted
-    SubTitle.TextSize = 11
-    SubTitle.TextXAlignment = Enum.TextXAlignment.Left
-    SubTitle.BackgroundTransparency = 1
-    SubTitle.ZIndex = 4
-
-    -- Content Area (Miejsce na elementy)
-    local Container = Instance.new("Frame")
-    Container.Name = "Container"
-    Container.Parent = Main
-    Container.Position = UDim2.new(0, 190, 0, 0)
-    Container.Size = UDim2.new(1, -190, 1, 0)
-    Container.BackgroundTransparency = 1
-    Container.ZIndex = 2
-
-    -- Inicjalizacja instancji okna
-    local Window = {
-        GUI = ScreenGui,
-        Main = Main,
-        Sidebar = Sidebar,
-        Container = Container,
-        Tabs = {},
-        ActiveTab = nil
-    }
-
-    -- Animacja wejścia (Style: Fluent)
-    Main.Size = UDim2.new(0, 0, 0, 0)
-    Main.ClipsDescendants = true
-    
-    task.spawn(function()
-        task.wait(Config.Waits.Boot)
-        Utils:Tween(Main, {Size = self.IsMobile and UDim2.new(0, 560, 0, 360) or UDim2.new(0, 620, 0, 420)}, Config.Waits.WindowOpen)
-        task.wait(Config.Waits.WindowOpen)
-        Main.ClipsDescendants = false
+    local success, service = pcall(function()
+        return game:GetService(serviceName)
     end)
+    if not success then return nil end
 
-    return Window
-end
---========================================================================
--- [4] ADVANCED DRAG ENGINE (Płynne przesuwanie PC/Mobile)
---========================================================================
-
-function Phantom.Utils:ApplyDrag(gui, dragPart)
-    local dragging = false
-    local dragInput
-    local dragStart
-    local startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        -- Obliczanie nowej pozycji z ograniczeniem do ekranu (Screen Constraint)
-        local newX = math.clamp(startPos.X.Offset + delta.X, 0, game.Workspace.CurrentCamera.ViewportSize.X - gui.AbsoluteSize.X)
-        local newY = math.clamp(startPos.Y.Offset + delta.Y, 0, game.Workspace.CurrentCamera.ViewportSize.Y - gui.AbsoluteSize.Y)
-        
-        -- Smooth Lerping (Wygładzanie ruchu - Style: Fluent)
-        Phantom.Utils:Tween(gui, {
-            Position = UDim2.new(startPos.X.Scale, newX, startPos.Y.Scale, newY)
-        }, 0.08, Enum.EasingStyle.Linear) -- Bardzo krótki czas dla responsywności
+    -- Dodatkowe zabezpieczenie: cloneref jeśli dostępny (większość executorów)
+    local protectedService = service
+    if cloneref and type(cloneref) == "function" then
+        local cloneSuccess, cloned = pcall(cloneref, service)
+        if cloneSuccess then
+            protectedService = cloned
+        end
+    elseif hookfunction and type(hookfunction) == "function" then
+        -- Alternatywa dla executorów bez cloneref (np. stare Krnl)
+        protectedService = service
     end
 
-    dragPart.InputBegan:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not UserInputService:GetFocusedTextBox() then
-            dragging = true
-            dragStart = input.Position
-            startPos = gui.Position
-
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
-            end)
-        end
-    end)
-
-    dragPart.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            dragInput = input
-        end
-    end)
-
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input == dragInput then
-            update(input)
-        end
-    end)
+    Services[serviceName] = protectedService
+    return protectedService
 end
-
--- Aplikacja silnika do okna (Wewnątrz funkcji CreateWindow)
--- Wywołujemy to automatycznie dla Sidebaru i Headera:
--- Phantom.Utils:ApplyDrag(Main, Sidebar)
---========================================================================
--- [5] ACRYLIC BLUR ENGINE (System rozmycia i tekstury szkła)
---========================================================================
-
-function Phantom:ApplyAcrylic(frame)
-    local Config = self.Config
-    
-    -- Główne tło Acrylic (Style: Windows 11 / Fluent)
-    local Acrylic = Instance.new("Frame")
-    Acrylic.Name = "Acrylic"
-    Acrylic.Parent = frame
-    Acrylic.Size = UDim2.new(1, 0, 1, 0)
-    Acrylic.BackgroundColor3 = Config.Theme.Main
-    Acrylic.BackgroundTransparency = 0.15 -- Delikatny prześwit
-    Acrylic.ZIndex = 0
-    
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 10)
-    Corner.Parent = Acrylic
-    
-    -- Warstwa szumu (Noise Texture - zapobiega płaskiemu wyglądowi)
-    local Noise = Instance.new("ImageLabel")
-    Noise.Name = "Noise"
-    Noise.Parent = Acrylic
-    Noise.BackgroundTransparency = 1
-    Noise.Size = UDim2.new(1, 0, 1, 0)
-    Noise.Image = Config.Assets.Blur
-    Noise.ImageTransparency = 0.96 -- Bardzo subtelne
-    Noise.ZIndex = 1
-    Noise.ScaleType = Enum.ScaleType.Tile
-    Noise.TileSize = UDim2.new(0, 128, 0, 128)
-
-    -- Gradient oświetlenia (Top-to-Bottom Light Leak)
-    local LightLeak = Instance.new("UIGradient")
-    LightLeak.Color = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)), -- Lekkie rozjaśnienie góry
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(150, 150, 150))  -- Ciemniejszy dół
-    })
-    LightLeak.Rotation = 90
-    LightLeak.Transparency = NumberSequence.new(0.92, 1) -- Tylko muśnięcie światłem
-    LightLeak.Parent = Acrylic
-
-    -- Obramowanie typu "Inner Glow" (Style: MacLib)
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Parent = Acrylic
-    Stroke.Color = Config.Theme.Outline
-    Stroke.Thickness = 1
-    Stroke.Transparency = 0.2
-    Stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-    return Acrylic
-end
-
--- Aktualizacja okna: Wywołaj to wewnątrz CreateWindow przed animacją wejścia:
--- self:ApplyAcrylic(Main)
---========================================================================
--- [6] NAVIGATION SYSTEM (System Zakładek i Stron)
---========================================================================
-
-function Phantom:CreateTab(options)
-    local Window = self
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Tab"
-    local IconID = typeof(options) == "table" and options.Icon or nil
-
-    -- Kontener na przyciski zakładek (jeśli nie istnieje)
-    if not Window.TabBtnHolder then
-        Window.TabBtnHolder = Instance.new("ScrollingFrame")
-        Window.TabBtnHolder.Name = "TabBtnHolder"
-        Window.TabBtnHolder.Parent = Window.Sidebar
-        Window.TabBtnHolder.Position = UDim2.new(0, 0, 0, 85)
-        Window.TabBtnHolder.Size = UDim2.new(1, 0, 1, -100)
-        Window.TabBtnHolder.BackgroundTransparency = 1
-        Window.TabBtnHolder.BorderSizePixel = 0
-        Window.TabBtnHolder.ScrollBarThickness = 0
-        Window.TabBtnHolder.CanvasSize = UDim2.new(0, 0, 0, 0)
-        
-        local TabList = Instance.new("UIListLayout")
-        TabList.Parent = Window.TabBtnHolder
-        TabList.SortOrder = Enum.SortOrder.LayoutOrder
-        TabList.Padding = UDim.new(0, 5)
-        
-        local TabPadding = Instance.new("UIPadding")
-        TabPadding.Parent = Window.TabBtnHolder
-        TabPadding.PaddingLeft = UDim.new(0, 15)
-        TabPadding.PaddingRight = UDim.new(0, 15)
-    end
-
-    local Tab = {
-        Window = Window,
-        Name = Name,
-        Active = false,
-        Elements = {}
-    }
-
-    -- Przycisk Zakładki (Style: Fluent/Rayfield mix)
-    local TabBtn = Instance.new("TextButton")
-    TabBtn.Name = Name .. "_Tab"
-    TabBtn.Parent = Window.TabBtnHolder
-    TabBtn.Size = UDim2.new(1, 0, 0, 36)
-    TabBtn.BackgroundColor3 = Config.Theme.Accent
-    TabBtn.BackgroundTransparency = 1
-    TabBtn.Text = ""
-    TabBtn.AutoButtonColor = false
-    
-    local TabCorner = Instance.new("UICorner")
-    TabCorner.CornerRadius = UDim.new(0, 6)
-    TabCorner.Parent = TabBtn
-
-    -- Pasek aktywności (Glow Bar)
-    local ActiveBar = Instance.new("Frame")
-    ActiveBar.Name = "ActiveBar"
-    ActiveBar.Parent = TabBtn
-    ActiveBar.Position = UDim2.new(0, -10, 0.5, -8)
-    ActiveBar.Size = UDim2.new(0, 3, 0, 16)
-    ActiveBar.BackgroundColor3 = Config.Theme.Accent
-    ActiveBar.BackgroundTransparency = 1
-    
-    local BarCorner = Instance.new("UICorner")
-    BarCorner.CornerRadius = UDim.new(1, 0)
-    BarCorner.Parent = ActiveBar
-
-    local TabLabel = Instance.new("TextLabel")
-    TabLabel.Parent = TabBtn
-    TabLabel.Size = UDim2.new(1, -10, 1, 0)
-    TabLabel.Position = UDim2.new(0, 10, 0, 0)
-    TabLabel.Text = Name
-    TabLabel.Font = Enum.Font.GothamMedium
-    TabLabel.TextSize = 13
-    TabLabel.TextColor3 = Config.Theme.TextMuted
-    TabLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TabLabel.BackgroundTransparency = 1
-
-    -- Strona elementów (Canvas - Style: MacLib)
-    local Page = Instance.new("ScrollingFrame")
-    Page.Name = Name .. "_Page"
-    Page.Parent = Window.Container
-    Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.Position = UDim2.new(0, 0, 0, 10)
-    Page.BackgroundTransparency = 1
-    Page.Visible = false
-    Page.BorderSizePixel = 0
-    Page.ScrollBarThickness = 2
-    Page.ScrollBarImageColor3 = Config.Theme.Accent
-    Page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    
-    local PageLayout = Instance.new("UIListLayout")
-    PageLayout.Parent = Page
-    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    PageLayout.Padding = UDim.new(0, 8)
-    
-    local PagePadding = Instance.new("UIPadding")
-    PagePadding.Parent = Page
-    PagePadding.PaddingLeft = UDim.new(0, 20)
-    PagePadding.PaddingRight = UDim.new(0, 20)
-    PagePadding.PaddingTop = UDim.new(0, 50) -- Miejsce na Search Bar w przyszłości
-
-    -- Funkcja Aktywacji
-    function Tab:Activate()
-        for _, t in pairs(Window.Tabs) do
-            t.Page.Visible = false
-            Utils:Tween(t.Btn, {BackgroundTransparency = 1}, 0.2)
-            Utils:Tween(t.Label, {TextColor3 = Config.Theme.TextMuted}, 0.2)
-            Utils:Tween(t.Bar, {BackgroundTransparency = 1, Position = UDim2.new(0, -10, 0.5, -8)}, 0.2)
-        end
-        
-        Page.Visible = true
-        Page.GroupTransparency = 1
-        Utils:Tween(Page, {GroupTransparency = 0}, 0.3) -- Fade-in effect
-        
-        Utils:Tween(TabBtn, {BackgroundTransparency = 0.9}, 0.2)
-        Utils:Tween(TabLabel, {TextColor3 = Config.Theme.Accent}, 0.2)
-        Utils:Tween(ActiveBar, {BackgroundTransparency = 0, Position = UDim2.new(0, -6, 0.5, -8)}, 0.2)
-        Window.ActiveTab = Tab
-    end
-
-    TabBtn.MouseButton1Click:Connect(function()
-        Tab:Activate()
-    end)
-
-    Tab.Page = Page
-    Tab.Btn = TabBtn
-    Tab.Label = TabLabel
-    Tab.Bar = ActiveBar
-    table.insert(Window.Tabs, Tab)
-
-    -- Auto-select pierwszej zakładki
-    if #Window.Tabs == 1 then
-        Tab:Activate()
-    end
-
-    return Tab
-end
---========================================================================
--- [7] TOP BAR & GLOBAL SEARCH (System Wyszukiwania i Nagłówek)
---========================================================================
-
-function Phantom:InitSearch(Window)
-    local Config = self.Config
-    local Utils = self.Utils
-
-    -- Kontener na Top Bar
-    local TopBar = Instance.new("Frame")
-    TopBar.Name = "TopBar"
-    TopBar.Parent = Window.Container
-    TopBar.Size = UDim2.new(1, 0, 0, 50)
-    TopBar.BackgroundTransparency = 1
-    TopBar.ZIndex = 5
-
-    -- Pole Wyszukiwania (Style: Fluent/MacLib)
-    local SearchFrame = Instance.new("Frame")
-    SearchFrame.Name = "SearchFrame"
-    SearchFrame.Parent = TopBar
-    SearchFrame.Position = UDim2.new(0, 20, 0, 10)
-    SearchFrame.Size = UDim2.new(1, -40, 0, 32)
-    SearchFrame.BackgroundColor3 = Config.Theme.Secondary
-    SearchFrame.BorderSizePixel = 0
-    
-    local SearchCorner = Instance.new("UICorner")
-    SearchCorner.CornerRadius = UDim.new(0, 8)
-    SearchCorner.Parent = SearchFrame
-
-    local SearchStroke = Instance.new("UIStroke")
-    SearchStroke.Color = Config.Theme.Outline
-    SearchStroke.Thickness = 1
-    SearchStroke.Parent = SearchFrame
-
-    local SearchIcon = Instance.new("ImageLabel")
-    SearchIcon.Parent = SearchFrame
-    SearchIcon.Position = UDim2.new(0, 10, 0.5, -8)
-    SearchIcon.Size = UDim2.new(0, 16, 0, 16)
-    SearchIcon.Image = "rbxassetid://6031154667"
-    SearchIcon.ImageColor3 = Config.Theme.TextMuted
-    SearchIcon.BackgroundTransparency = 1
-
-    local SearchInput = Instance.new("TextBox")
-    SearchInput.Name = "SearchInput"
-    SearchInput.Parent = SearchFrame
-    SearchInput.Size = UDim2.new(1, -40, 1, 0)
-    SearchInput.Position = UDim2.new(0, 35, 0, 0)
-    SearchInput.BackgroundTransparency = 1
-    SearchInput.Text = ""
-    SearchInput.PlaceholderText = "Search features..."
-    SearchInput.PlaceholderColor3 = Config.Theme.TextMuted
-    SearchInput.TextColor3 = Config.Theme.Text
-    SearchInput.Font = Enum.Font.Gotham
-    SearchInput.TextSize = 13
-    SearchInput.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Silnik Wyszukiwania (Style: Rayfield Filter)
-    SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
-        local Query = SearchInput.Text:lower()
-        local ActiveTab = Window.ActiveTab
-
-        if ActiveTab then
-            Utils:Tween(SearchStroke, {Color = Query ~= "" and Config.Theme.Accent or Config.Theme.Outline}, 0.2)
-            
-            for _, Element in pairs(ActiveTab.Page:GetChildren()) do
-                if Element:IsA("Frame") or Element:IsA("TextButton") then
-                    -- Przeszukujemy po nazwie elementu (zapisanej w Name)
-                    local TargetText = Element.Name:lower()
-                    
-                    if Query == "" or TargetText:find(Query) then
-                        Element.Visible = true
-                        Utils:Tween(Element, {GroupTransparency = 0}, 0.2)
-                    else
-                        task.spawn(function()
-                            Utils:Tween(Element, {GroupTransparency = 1}, 0.2)
-                            task.wait(0.2)
-                            if SearchInput.Text:lower() ~= "" then -- Sprawdzenie czy wciąż szukamy
-                                Element.Visible = false
-                            end
-                        end)
-                    end
-                end
-            end
-        end
-    end)
-
-    -- Animacja fokusu
-    SearchInput.Focused:Connect(function()
-        Utils:Tween(SearchStroke, {Thickness = 1.5, Color = Config.Theme.Accent}, 0.2)
-    end)
-
-    SearchInput.FocusLost:Connect(function()
-        Utils:Tween(SearchStroke, {Thickness = 1, Color = SearchInput.Text ~= "" and Config.Theme.Accent or Config.Theme.Outline}, 0.2)
-    end)
-
-    Window.SearchInput = SearchInput
-end
-
--- Inicjalizacja przy tworzeniu okna:
--- self:InitSearch(Window)
---========================================================================
--- [8] ULTIMATE BUTTON V4 (Przyciski z Ripple i Hoverem)
---========================================================================
-
-function Phantom:CreateButton(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Button"
-    local Desc = typeof(options) == "table" and options.Desc or "Execute function"
-    
-    task.wait(Config.Waits.RenderElement)
-
-    local ButtonFrame = Instance.new("TextButton")
-    ButtonFrame.Name = Name -- Nazwa dla silnika Search
-    ButtonFrame.Parent = tab.Page
-    ButtonFrame.Size = UDim2.new(1, 0, 0, 48)
-    ButtonFrame.BackgroundColor3 = Config.Theme.Secondary
-    ButtonFrame.BorderSizePixel = 0
-    ButtonFrame.Text = ""
-    ButtonFrame.AutoButtonColor = false
-    ButtonFrame.ClipsDescendants = true
-    ButtonFrame.GroupTransparency = 1 -- Dla efektu Fade-in
-
-    local BtnCorner = Instance.new("UICorner")
-    BtnCorner.CornerRadius = UDim.new(0, 8)
-    BtnCorner.Parent = ButtonFrame
-    
-    local BtnStroke = Instance.new("UIStroke")
-    BtnStroke.Color = Config.Theme.Outline
-    BtnStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    BtnStroke.Transparency = 0.2
-    BtnStroke.Parent = ButtonFrame
-
-    -- Teksty (Style: MacLib/Rayfield)
-    local Title = Instance.new("TextLabel")
-    Title.Parent = ButtonFrame
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -60, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local Description = Instance.new("TextLabel")
-    Description.Parent = ButtonFrame
-    Description.Position = UDim2.new(0, 15, 0, 26)
-    Description.Size = UDim2.new(1, -60, 0, 12)
-    Description.Text = Desc
-    Description.Font = Enum.Font.Gotham
-    Description.TextColor3 = Config.Theme.TextMuted
-    Description.TextSize = 11
-    Description.TextXAlignment = Enum.TextXAlignment.Left
-    Description.BackgroundTransparency = 1
-
-    -- Ikona akcji (Arrow style)
-    local Arrow = Instance.new("ImageLabel")
-    Arrow.Parent = ButtonFrame
-    Arrow.Position = UDim2.new(1, -30, 0.5, -8)
-    Arrow.Size = UDim2.new(0, 16, 0, 16)
-    Arrow.Image = "rbxassetid://6034818372"
-    Arrow.ImageColor3 = Config.Theme.TextMuted
-    Arrow.BackgroundTransparency = 1
-
-    -- Interakcje (Hover & Click)
-    ButtonFrame.MouseEnter:Connect(function()
-        Utils:Tween(ButtonFrame, {BackgroundColor3 = Color3.fromRGB(20, 20, 25)}, 0.2)
-        Utils:Tween(BtnStroke, {Color = Config.Theme.Accent, Transparency = 0}, 0.2)
-        Utils:Tween(Arrow, {ImageColor3 = Config.Theme.Accent, Position = UDim2.new(1, -28, 0.5, -8)}, 0.2)
-    end)
-
-    ButtonFrame.MouseLeave:Connect(function()
-        Utils:Tween(ButtonFrame, {BackgroundColor3 = Config.Theme.Secondary}, 0.2)
-        Utils:Tween(BtnStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-        Utils:Tween(Arrow, {ImageColor3 = Config.Theme.TextMuted, Position = UDim2.new(1, -30, 0.5, -8)}, 0.2)
-    end)
-
-    ButtonFrame.MouseButton1Click:Connect(function()
-        Utils:Ripple(ButtonFrame) -- Wywołanie silnika Ripple z Etapu 1
-        task.spawn(callback)
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(ButtonFrame, {GroupTransparency = 0}, 0.3)
-
-    return ButtonFrame
-end
---========================================================================
--- [9] PROFESSIONAL TOGGLE V4 (Przełącznik z obsługą flag i animacją)
---========================================================================
-
-function Phantom:CreateToggle(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Toggle"
-    local Desc = typeof(options) == "table" and options.Desc or "Enable or disable this feature"
-    local Default = typeof(options) == "table" and options.Default or false
-    local Flag = typeof(options) == "table" and options.Flag or Name
-    
-    -- Rejestracja flagi w systemie
-    self.Flags[Flag] = Default
-    
-    task.wait(Config.Waits.RenderElement)
-
-    local ToggleFrame = Instance.new("TextButton")
-    ToggleFrame.Name = Name
-    ToggleFrame.Parent = tab.Page
-    ToggleFrame.Size = UDim2.new(1, 0, 0, 48)
-    ToggleFrame.BackgroundColor3 = Config.Theme.Secondary
-    ToggleFrame.BorderSizePixel = 0
-    ToggleFrame.Text = ""
-    ToggleFrame.AutoButtonColor = false
-    ToggleFrame.ClipsDescendants = true
-    ToggleFrame.GroupTransparency = 1
-
-    local TglCorner = Instance.new("UICorner")
-    TglCorner.CornerRadius = UDim.new(0, 8)
-    TglCorner.Parent = ToggleFrame
-    
-    local TglStroke = Instance.new("UIStroke")
-    TglStroke.Color = Config.Theme.Outline
-    TglStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    TglStroke.Transparency = 0.2
-    TglStroke.Parent = ToggleFrame
-
-    -- Teksty
-    local Title = Instance.new("TextLabel")
-    Title.Parent = ToggleFrame
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -80, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local Description = Instance.new("TextLabel")
-    Description.Parent = ToggleFrame
-    Description.Position = UDim2.new(0, 15, 0, 26)
-    Description.Size = UDim2.new(1, -80, 0, 12)
-    Description.Text = Desc
-    Description.Font = Enum.Font.Gotham
-    Description.TextColor3 = Config.Theme.TextMuted
-    Description.TextSize = 11
-    Description.TextXAlignment = Enum.TextXAlignment.Left
-    Description.BackgroundTransparency = 1
-
-    -- Tło Switcha (Style: Fluent)
-    local SwitchBase = Instance.new("Frame")
-    SwitchBase.Parent = ToggleFrame
-    SwitchBase.Position = UDim2.new(1, -50, 0.5, -10)
-    SwitchBase.Size = UDim2.new(0, 36, 0, 20)
-    SwitchBase.BackgroundColor3 = Default and Config.Theme.Accent or Color3.fromRGB(35, 35, 40)
-    
-    local SwCorner = Instance.new("UICorner")
-    SwCorner.CornerRadius = UDim.new(1, 0)
-    SwCorner.Parent = SwitchBase
-
-    local SwitchDot = Instance.new("Frame")
-    SwitchDot.Parent = SwitchBase
-    SwitchDot.Position = Default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
-    SwitchDot.Size = UDim2.new(0, 16, 0, 16)
-    SwitchDot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    
-    local DotCorner = Instance.new("UICorner")
-    DotCorner.CornerRadius = UDim.new(1, 0)
-    DotCorner.Parent = SwitchDot
-
-    -- Logika działania
-    local Toggled = Default
-    local function SetState(state)
-        Toggled = state
-        self.Flags[Flag] = state
-        
-        Utils:Tween(SwitchBase, {BackgroundColor3 = Toggled and Config.Theme.Accent or Color3.fromRGB(35, 35, 40)}, 0.25)
-        Utils:Tween(SwitchDot, {Position = Toggled and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)}, 0.25)
-        
-        task.spawn(callback, Toggled)
-    end
-
-    ToggleFrame.MouseButton1Click:Connect(function()
-        SetState(not Toggled)
-    end)
-
-    -- Hover Effect
-    ToggleFrame.MouseEnter:Connect(function()
-        Utils:Tween(TglStroke, {Color = Config.Theme.Accent, Transparency = 0}, 0.2)
-    end)
-
-    ToggleFrame.MouseLeave:Connect(function()
-        Utils:Tween(TglStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(ToggleFrame, {GroupTransparency = 0}, 0.3)
-
-    return {
-        Set = SetState,
-        Frame = ToggleFrame
-    }
-end
---========================================================================
--- [10] PRECISION SLIDER (Suwak z płynnym mapowaniem i animacją)
---========================================================================
-
-function Phantom:CreateSlider(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Slider"
-    local Min = typeof(options) == "table" and options.Min or 0
-    local Max = typeof(options) == "table" and options.Max or 100
-    local Default = typeof(options) == "table" and options.Default or Min
-    local Flag = typeof(options) == "table" and options.Flag or Name
-    
-    -- Inicjalizacja flagi
-    self.Flags[Flag] = Default
-    
-    task.wait(Config.Waits.RenderElement)
-
-    local SliderFrame = Instance.new("Frame")
-    SliderFrame.Name = Name
-    SliderFrame.Parent = tab.Page
-    SliderFrame.Size = UDim2.new(1, 0, 0, 55) -- Nieco wyższy, by pomieścić pasek
-    SliderFrame.BackgroundColor3 = Config.Theme.Secondary
-    SliderFrame.BorderSizePixel = 0
-    SliderFrame.GroupTransparency = 1
-
-    local SldCorner = Instance.new("UICorner")
-    SldCorner.CornerRadius = UDim.new(0, 8)
-    SldCorner.Parent = SliderFrame
-
-    local SldStroke = Instance.new("UIStroke")
-    SldStroke.Color = Config.Theme.Outline
-    SldStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    SldStroke.Transparency = 0.2
-    SldStroke.Parent = SliderFrame
-
-    -- Tekst i Wartość
-    local Title = Instance.new("TextLabel")
-    Title.Parent = SliderFrame
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -80, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local ValueLabel = Instance.new("TextLabel")
-    ValueLabel.Parent = SliderFrame
-    ValueLabel.Position = UDim2.new(1, -65, 0, 10)
-    ValueLabel.Size = UDim2.new(0, 50, 0, 14)
-    ValueLabel.Text = tostring(Default)
-    ValueLabel.Font = Enum.Font.GothamMedium
-    ValueLabel.TextColor3 = Config.Theme.Accent
-    ValueLabel.TextSize = 13
-    ValueLabel.TextXAlignment = Enum.TextXAlignment.Right
-    ValueLabel.BackgroundTransparency = 1
-
-    -- Pasek Slidera (Style: Rayfield/Fluent)
-    local SliderRail = Instance.new("Frame")
-    SliderRail.Name = "Rail"
-    SliderRail.Parent = SliderFrame
-    SliderRail.Position = UDim2.new(0, 15, 0, 35)
-    SliderRail.Size = UDim2.new(1, -30, 0, 4)
-    SliderRail.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    SliderRail.BorderSizePixel = 0
-    
-    local RailCorner = Instance.new("UICorner")
-    RailCorner.CornerRadius = UDim.new(1, 0)
-    RailCorner.Parent = SliderRail
-
-    local SliderFill = Instance.new("Frame")
-    SliderFill.Name = "Fill"
-    SliderFill.Parent = SliderRail
-    SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
-    SliderFill.BackgroundColor3 = Config.Theme.Accent
-    SliderFill.BorderSizePixel = 0
-    
-    local FillCorner = Instance.new("UICorner")
-    FillCorner.CornerRadius = UDim.new(1, 0)
-    FillCorner.Parent = SliderFill
-
-    -- Logika przesuwania (Style: Ultimate Precision)
-    local dragging = false
-
-    local function move(input)
-        local pos = math.clamp((input.Position.X - SliderRail.AbsolutePosition.X) / SliderRail.AbsoluteSize.X, 0, 1)
-        local value = math.floor(Min + (Max - Min) * pos)
-        
-        SliderFill.Size = UDim2.new(pos, 0, 1, 0)
-        ValueLabel.Text = tostring(value)
-        self.Flags[Flag] = value
-        
-        task.spawn(callback, value)
-    end
-
-    SliderFrame.InputBegan:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            dragging = true
-            move(input)
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            dragging = false
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            move(input)
-        end
-    end)
-
-    -- Hover Effect
-    SliderFrame.MouseEnter:Connect(function()
-        Utils:Tween(SldStroke, {Color = Config.Theme.Accent, Transparency = 0}, 0.2)
-    end)
-
-    SliderFrame.MouseLeave:Connect(function()
-        Utils:Tween(SldStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(SliderFrame, {GroupTransparency = 0}, 0.3)
-
-    return SliderFrame
-end
---========================================================================
--- [11] ADVANCED SLIDER (Obsługa kroków, postfixów i wpisywania ręcznego)
---========================================================================
-
-function Phantom:CreateAdvancedSlider(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Advanced Slider"
-    local Min = options.Min or 0
-    local Max = options.Max or 100
-    local Step = options.Step or 1
-    local Default = options.Default or Min
-    local Postfix = options.Suffix or ""
-    local Flag = options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local SliderFrame = Instance.new("Frame")
-    SliderFrame.Name = Name
-    SliderFrame.Parent = tab.Page
-    SliderFrame.Size = UDim2.new(1, 0, 0, 55)
-    SliderFrame.BackgroundColor3 = Config.Theme.Secondary
-    SliderFrame.BorderSizePixel = 0
-    SliderFrame.GroupTransparency = 1
-
-    local SldCorner = Instance.new("UICorner")
-    SldCorner.CornerRadius = UDim.new(0, 8)
-    SldCorner.Parent = SliderFrame
-
-    local SldStroke = Instance.new("UIStroke")
-    SldStroke.Color = Config.Theme.Outline
-    SldStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    SldStroke.Transparency = 0.2
-    SldStroke.Parent = SliderFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = SliderFrame
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -120, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    -- Interaktywny Box Wartości (Style: Fluent/MacLib)
-    local ValueContainer = Instance.new("Frame")
-    ValueContainer.Parent = SliderFrame
-    ValueContainer.Position = UDim2.new(1, -75, 0, 8)
-    ValueContainer.Size = UDim2.new(0, 60, 0, 20)
-    ValueContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    ValueContainer.BorderSizePixel = 0
-    
-    local ValCorner = Instance.new("UICorner")
-    ValCorner.CornerRadius = UDim.new(0, 4)
-    ValCorner.Parent = ValueContainer
-
-    local ValueInput = Instance.new("TextBox")
-    ValueInput.Parent = ValueContainer
-    ValueInput.Size = UDim2.new(1, 0, 1, 0)
-    ValueInput.BackgroundTransparency = 1
-    ValueInput.Text = tostring(Default) .. Postfix
-    ValueInput.TextColor3 = Config.Theme.Accent
-    ValueInput.Font = Enum.Font.GothamMedium
-    ValueInput.TextSize = 12
-    ValueInput.ClearTextOnFocus = false
-
-    local SliderRail = Instance.new("Frame")
-    SliderRail.Parent = SliderFrame
-    SliderRail.Position = UDim2.new(0, 15, 0, 38)
-    SliderRail.Size = UDim2.new(1, -30, 0, 4)
-    SliderRail.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    SliderRail.BorderSizePixel = 0
-    
-    local SliderFill = Instance.new("Frame")
-    SliderFill.Parent = SliderRail
-    SliderFill.Size = UDim2.new((Default - Min) / (Max - Min), 0, 1, 0)
-    SliderFill.BackgroundColor3 = Config.Theme.Accent
-    SliderFill.BorderSizePixel = 0
-    
-    local FillCorner = Instance.new("UICorner")
-    FillCorner.CornerRadius = UDim.new(1, 0)
-    FillCorner.Parent = SliderFill
-
-    local function UpdateValue(val, ignoreInput)
-        -- Logika Kroków (Steps)
-        val = math.clamp(val, Min, Max)
-        val = math.floor(val / Step + 0.5) * Step
-        
-        local rawPos = (val - Min) / (Max - Min)
-        Utils:Tween(SliderFill, {Size = UDim2.new(rawPos, 0, 1, 0)}, 0.1)
-        
-        if not ignoreInput then
-            ValueInput.Text = tostring(val) .. Postfix
-        end
-        
-        self.Flags[Flag] = val
-        task.spawn(callback, val)
-    end
-
-    -- Obsługa myszki/dotyku
-    local dragging = false
-    SliderFrame.InputBegan:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            dragging = true
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-            dragging = false
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-            local pos = math.clamp((input.Position.X - SliderRail.AbsolutePosition.X) / SliderRail.AbsoluteSize.X, 0, 1)
-            local val = Min + (Max - Min) * pos
-            UpdateValue(val)
-        end
-    end)
-
-    -- Obsługa wpisywania ręcznego
-    ValueInput.FocusLost:Connect(function()
-        local cleanText = ValueInput.Text:gsub(Postfix, "")
-        local num = tonumber(cleanText)
-        if num then
-            UpdateValue(num)
+Phantom.GetService = getService
+
+-- ====================== BEZPIECZNE WYKONYWANIE (CALLBACK SAFETY) ======================
+function Phantom.CallSafely(callback, ...)
+    local args = {...}
+    local success, result = pcall(callback, unpack(args))
+    if not success then
+        if Phantom.SecureMode then
+            warn("[Phantom] Blokada błędu (secure mode): " .. tostring(result))
         else
-            ValueInput.Text = tostring(self.Flags[Flag]) .. Postfix
-        end
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(SliderFrame, {GroupTransparency = 0}, 0.3)
-
-    return SliderFrame
-end
---========================================================================
--- [12] SINGLE DROPDOWN (Zwijana lista wyboru z animacją)
---========================================================================
-
-function Phantom:CreateDropdown(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Dropdown"
-    local List = typeof(options) == "table" and options.Options or {}
-    local Default = typeof(options) == "table" and options.Default or ""
-    local Flag = typeof(options) == "table" and options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local DropdownOpened = false
-    
-    local DropdownFrame = Instance.new("Frame")
-    DropdownFrame.Name = Name
-    DropdownFrame.Parent = tab.Page
-    DropdownFrame.Size = UDim2.new(1, 0, 0, 48)
-    DropdownFrame.BackgroundColor3 = Config.Theme.Secondary
-    DropdownFrame.BorderSizePixel = 0
-    DropdownFrame.ClipsDescendants = true
-    DropdownFrame.GroupTransparency = 1
-
-    local DrpCorner = Instance.new("UICorner")
-    DrpCorner.CornerRadius = UDim.new(0, 8)
-    DrpCorner.Parent = DropdownFrame
-
-    local DrpStroke = Instance.new("UIStroke")
-    DrpStroke.Color = Config.Theme.Outline
-    DrpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    DrpStroke.Transparency = 0.2
-    DrpStroke.Parent = DropdownFrame
-
-    -- Nagłówek Dropdowna (Główny przycisk)
-    local Header = Instance.new("TextButton")
-    Header.Name = "Header"
-    Header.Parent = DropdownFrame
-    Header.Size = UDim2.new(1, 0, 0, 48)
-    Header.BackgroundTransparency = 1
-    Header.Text = ""
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -60, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local SelectionText = Instance.new("TextLabel")
-    SelectionText.Parent = Header
-    SelectionText.Position = UDim2.new(0, 15, 0, 26)
-    SelectionText.Size = UDim2.new(1, -60, 0, 12)
-    SelectionText.Text = Default ~= "" and Default or "None selected"
-    SelectionText.Font = Enum.Font.Gotham
-    SelectionText.TextColor3 = Config.Theme.Accent
-    SelectionText.TextSize = 11
-    SelectionText.TextXAlignment = Enum.TextXAlignment.Left
-    SelectionText.BackgroundTransparency = 1
-
-    local Arrow = Instance.new("ImageLabel")
-    Arrow.Parent = Header
-    Arrow.Position = UDim2.new(1, -30, 0, 16)
-    Arrow.Size = UDim2.new(0, 16, 0, 16)
-    Arrow.Image = "rbxassetid://6034818372" -- Ikona strzałki
-    Arrow.ImageColor3 = Config.Theme.TextMuted
-    Arrow.BackgroundTransparency = 1
-
-    -- Kontener na opcje
-    local OptionHolder = Instance.new("Frame")
-    OptionHolder.Name = "Options"
-    OptionHolder.Parent = DropdownFrame
-    OptionHolder.Position = UDim2.new(0, 10, 0, 48)
-    OptionHolder.Size = UDim2.new(1, -20, 0, 0) -- Dynamiczna wysokość
-    OptionHolder.BackgroundTransparency = 1
-    
-    local OptionList = Instance.new("UIListLayout")
-    OptionList.Parent = OptionHolder
-    OptionList.SortOrder = Enum.SortOrder.LayoutOrder
-    OptionList.Padding = UDim.new(0, 4)
-
-    -- Funkcja tworzenia opcji
-    local function AddOption(val)
-        local OptionBtn = Instance.new("TextButton")
-        OptionBtn.Name = val
-        OptionBtn.Parent = OptionHolder
-        OptionBtn.Size = UDim2.new(1, 0, 0, 28)
-        OptionBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-        OptionBtn.BorderSizePixel = 0
-        OptionBtn.Text = val
-        OptionBtn.Font = Enum.Font.Gotham
-        OptionBtn.TextColor3 = Config.Theme.TextMuted
-        OptionBtn.TextSize = 12
-        
-        local OptCorner = Instance.new("UICorner")
-        OptCorner.CornerRadius = UDim.new(0, 4)
-        OptCorner.Parent = OptionBtn
-
-        OptionBtn.MouseButton1Click:Connect(function()
-            SelectionText.Text = val
-            self.Flags[Flag] = val
-            
-            -- Zwijanie po wyborze
-            DropdownOpened = false
-            Utils:Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.3)
-            Utils:Tween(Arrow, {Rotation = 0}, 0.3)
-            
-            task.spawn(callback, val)
-        end)
-    end
-
-    for _, v in pairs(List) do AddOption(v) end
-
-    -- Logika otwierania
-    Header.MouseButton1Click:Connect(function()
-        DropdownOpened = not DropdownOpened
-        local TargetSize = DropdownOpened and UDim2.new(1, 0, 0, 55 + OptionList.AbsoluteContentSize.Y) or UDim2.new(1, 0, 0, 48)
-        
-        Utils:Tween(DropdownFrame, {Size = TargetSize}, 0.3)
-        Utils:Tween(Arrow, {Rotation = DropdownOpened and 180 or 0}, 0.3)
-        Utils:Tween(DrpStroke, {Color = DropdownOpened and Config.Theme.Accent or Config.Theme.Outline}, 0.3)
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(DropdownFrame, {GroupTransparency = 0}, 0.3)
-
-    return DropdownFrame
-end
---========================================================================
--- [13] SEARCHABLE DROPDOWN (Dropdown z filtrowaniem w czasie rzeczywistym)
---========================================================================
-
-function Phantom:CreateSearchDropdown(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Search Dropdown"
-    local List = typeof(options) == "table" and options.Options or {}
-    local Default = typeof(options) == "table" and options.Default or ""
-    local Flag = typeof(options) == "table" and options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local DropdownOpened = false
-    local OptionInstances = {}
-    
-    local DropdownFrame = Instance.new("Frame")
-    DropdownFrame.Name = Name
-    DropdownFrame.Parent = tab.Page
-    DropdownFrame.Size = UDim2.new(1, 0, 0, 48)
-    DropdownFrame.BackgroundColor3 = Config.Theme.Secondary
-    DropdownFrame.BorderSizePixel = 0
-    DropdownFrame.ClipsDescendants = true
-    DropdownFrame.GroupTransparency = 1
-
-    local DrpCorner = Instance.new("UICorner")
-    DrpCorner.CornerRadius = UDim.new(0, 8)
-    DrpCorner.Parent = DropdownFrame
-
-    local DrpStroke = Instance.new("UIStroke")
-    DrpStroke.Color = Config.Theme.Outline
-    DrpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    DrpStroke.Transparency = 0.2
-    DrpStroke.Parent = DropdownFrame
-
-    -- Nagłówek
-    local Header = Instance.new("TextButton")
-    Header.Name = "Header"
-    Header.Parent = DropdownFrame
-    Header.Size = UDim2.new(1, 0, 0, 48)
-    Header.BackgroundTransparency = 1
-    Header.Text = ""
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -60, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local SelectionText = Instance.new("TextLabel")
-    SelectionText.Parent = Header
-    SelectionText.Position = UDim2.new(0, 15, 0, 26)
-    SelectionText.Size = UDim2.new(1, -60, 0, 12)
-    SelectionText.Text = Default ~= "" and Default or "Click to search..."
-    SelectionText.Font = Enum.Font.Gotham
-    SelectionText.TextColor3 = Config.Theme.Accent
-    SelectionText.TextSize = 11
-    SelectionText.TextXAlignment = Enum.TextXAlignment.Left
-    SelectionText.BackgroundTransparency = 1
-
-    -- Ikona lupy/strzałki
-    local Icon = Instance.new("ImageLabel")
-    Icon.Parent = Header
-    Icon.Position = UDim2.new(1, -30, 0, 16)
-    Icon.Size = UDim2.new(0, 16, 0, 16)
-    Icon.Image = "rbxassetid://6031154667" -- Lupa
-    Icon.ImageColor3 = Config.Theme.TextMuted
-    Icon.BackgroundTransparency = 1
-
-    -- Pole wyszukiwania (wewnątrz Dropdowna)
-    local SearchBox = Instance.new("TextBox")
-    SearchBox.Parent = DropdownFrame
-    SearchBox.Position = UDim2.new(0, 10, 0, 50)
-    SearchBox.Size = UDim2.new(1, -20, 0, 30)
-    SearchBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    SearchBox.Text = ""
-    SearchBox.PlaceholderText = "Type to filter..."
-    SearchBox.Font = Enum.Font.Gotham
-    SearchBox.TextSize = 12
-    SearchBox.TextColor3 = Config.Theme.Text
-    SearchBox.Visible = false
-    
-    local SBCorner = Instance.new("UICorner")
-    SBCorner.CornerRadius = UDim.new(0, 6)
-    SBCorner.Parent = SearchBox
-
-    -- Kontener na opcje
-    local OptionHolder = Instance.new("ScrollingFrame")
-    OptionHolder.Name = "Options"
-    OptionHolder.Parent = DropdownFrame
-    OptionHolder.Position = UDim2.new(0, 10, 0, 85)
-    OptionHolder.Size = UDim2.new(1, -20, 0, 0)
-    OptionHolder.BackgroundTransparency = 1
-    OptionHolder.ScrollBarThickness = 2
-    OptionHolder.ScrollBarImageColor3 = Config.Theme.Accent
-    
-    local OptionList = Instance.new("UIListLayout")
-    OptionList.Parent = OptionHolder
-    OptionList.Padding = UDim.new(0, 4)
-
-    local function AddOption(val)
-        local OptionBtn = Instance.new("TextButton")
-        OptionBtn.Name = val
-        OptionBtn.Parent = OptionHolder
-        OptionBtn.Size = UDim2.new(1, -5, 0, 28)
-        OptionBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-        OptionBtn.Text = val
-        OptionBtn.Font = Enum.Font.Gotham
-        OptionBtn.TextColor3 = Config.Theme.TextMuted
-        OptionBtn.TextSize = 12
-        OptionBtn.AutoButtonColor = false
-        
-        local OptCorner = Instance.new("UICorner")
-        OptCorner.CornerRadius = UDim.new(0, 4)
-        OptCorner.Parent = OptionBtn
-
-        OptionBtn.MouseButton1Click:Connect(function()
-            SelectionText.Text = val
-            self.Flags[Flag] = val
-            DropdownOpened = false
-            Utils:Tween(DropdownFrame, {Size = UDim2.new(1, 0, 0, 48)}, 0.3)
-            SearchBox.Visible = false
-            task.spawn(callback, val)
-        end)
-        
-        table.insert(OptionInstances, OptionBtn)
-    end
-
-    for _, v in pairs(List) do AddOption(v) end
-
-    -- Logika szukania
-    SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-        local Query = SearchBox.Text:lower()
-        for _, btn in pairs(OptionInstances) do
-            btn.Visible = (Query == "" or btn.Name:lower():find(Query))
-        end
-        -- Dynamiczna korekta wysokości przy szukaniu
-        local VisibleCount = 0
-        for _, btn in pairs(OptionInstances) do if btn.Visible then VisibleCount = VisibleCount + 1 end end
-        local NewHeight = math.clamp(VisibleCount * 32, 0, 150)
-        Utils:Tween(OptionHolder, {Size = UDim2.new(1, -20, 0, NewHeight)}, 0.2)
-    end)
-
-    Header.MouseButton1Click:Connect(function()
-        DropdownOpened = not DropdownOpened
-        SearchBox.Visible = DropdownOpened
-        
-        local TargetSize = DropdownOpened and UDim2.new(1, 0, 0, 240) or UDim2.new(1, 0, 0, 48)
-        local ListHeight = DropdownOpened and 140 or 0
-        
-        Utils:Tween(DropdownFrame, {Size = TargetSize}, 0.3)
-        Utils:Tween(OptionHolder, {Size = UDim2.new(1, -20, 0, ListHeight)}, 0.3)
-        Utils:Tween(DrpStroke, {Color = DropdownOpened and Config.Theme.Accent or Config.Theme.Outline}, 0.3)
-        
-        if DropdownOpened then SearchBox:CaptureFocus() end
-    end)
-
-    Utils:Tween(DropdownFrame, {GroupTransparency = 0}, 0.3)
-    return DropdownFrame
-end
---========================================================================
--- [14] MULTI-DROPDOWN (Wybór wielu opcji naraz - Styl Pepsi/MacLib)
---========================================================================
-
-function Phantom:CreateMultiDropdown(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Multi Dropdown"
-    local List = options.Options or {}
-    local Default = options.Default or {}
-    local Flag = options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local DropdownOpened = false
-    local SelectedOptions = {}
-    for _, v in pairs(Default) do SelectedOptions[v] = true end
-
-    local DropdownFrame = Instance.new("Frame")
-    DropdownFrame.Name = Name
-    DropdownFrame.Parent = tab.Page
-    DropdownFrame.Size = UDim2.new(1, 0, 0, 48)
-    DropdownFrame.BackgroundColor3 = Config.Theme.Secondary
-    DropdownFrame.BorderSizePixel = 0
-    DropdownFrame.ClipsDescendants = true
-    DropdownFrame.GroupTransparency = 1
-
-    local DrpCorner = Instance.new("UICorner")
-    DrpCorner.CornerRadius = UDim.new(0, 8)
-    DrpCorner.Parent = DropdownFrame
-
-    local DrpStroke = Instance.new("UIStroke")
-    DrpStroke.Color = Config.Theme.Outline
-    DrpStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    DrpStroke.Transparency = 0.2
-    DrpStroke.Parent = DropdownFrame
-
-    local Header = Instance.new("TextButton")
-    Header.Name = "Header"
-    Header.Parent = DropdownFrame
-    Header.Size = UDim2.new(1, 0, 0, 48)
-    Header.BackgroundTransparency = 1
-    Header.Text = ""
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -60, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local SelectionText = Instance.new("TextLabel")
-    SelectionText.Parent = Header
-    SelectionText.Position = UDim2.new(0, 15, 0, 26)
-    SelectionText.Size = UDim2.new(1, -60, 0, 12)
-    SelectionText.Text = "None"
-    SelectionText.Font = Enum.Font.Gotham
-    SelectionText.TextColor3 = Config.Theme.Accent
-    SelectionText.TextSize = 11
-    SelectionText.TextXAlignment = Enum.TextXAlignment.Left
-    SelectionText.BackgroundTransparency = 1
-
-    local function UpdateSelectionDisplay()
-        local selected = {}
-        for val, state in pairs(SelectedOptions) do
-            if state then table.insert(selected, val) end
-        end
-        
-        if #selected == 0 then
-            SelectionText.Text = "None selected"
-        elseif #selected <= 3 then
-            SelectionText.Text = table.concat(selected, ", ")
-        else
-            SelectionText.Text = #selected .. " items selected..."
-        end
-        
-        self.Flags[Flag] = selected
-        task.spawn(callback, selected)
-    end
-
-    local OptionHolder = Instance.new("Frame")
-    OptionHolder.Name = "Options"
-    OptionHolder.Parent = DropdownFrame
-    OptionHolder.Position = UDim2.new(0, 10, 0, 48)
-    OptionHolder.Size = UDim2.new(1, -20, 0, 0)
-    OptionHolder.BackgroundTransparency = 1
-    
-    local OptionList = Instance.new("UIListLayout")
-    OptionList.Parent = OptionHolder
-    OptionList.Padding = UDim.new(0, 4)
-
-    local function AddOption(val)
-        local OptionBtn = Instance.new("TextButton")
-        OptionBtn.Name = val
-        OptionBtn.Parent = OptionHolder
-        OptionBtn.Size = UDim2.new(1, 0, 0, 28)
-        OptionBtn.BackgroundColor3 = SelectedOptions[val] and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(30, 30, 35)
-        OptionBtn.Text = val
-        OptionBtn.Font = Enum.Font.Gotham
-        OptionBtn.TextColor3 = SelectedOptions[val] and Config.Theme.Accent or Config.Theme.TextMuted
-        OptionBtn.TextSize = 12
-        
-        local OptCorner = Instance.new("UICorner")
-        OptCorner.CornerRadius = UDim.new(0, 4)
-        OptCorner.Parent = OptionBtn
-
-        OptionBtn.MouseButton1Click:Connect(function()
-            SelectedOptions[val] = not SelectedOptions[val]
-            
-            -- Visual Update
-            Utils:Tween(OptionBtn, {BackgroundColor3 = SelectedOptions[val] and Color3.fromRGB(40, 40, 45) or Color3.fromRGB(30, 30, 35)}, 0.2)
-            Utils:Tween(OptionBtn, {TextColor3 = SelectedOptions[val] and Config.Theme.Accent or Config.Theme.TextMuted}, 0.2)
-            
-            UpdateSelectionDisplay()
-        end)
-    end
-
-    for _, v in pairs(List) do AddOption(v) end
-    UpdateSelectionDisplay()
-
-    Header.MouseButton1Click:Connect(function()
-        DropdownOpened = not DropdownOpened
-        local TargetSize = DropdownOpened and UDim2.new(1, 0, 0, 55 + OptionList.AbsoluteContentSize.Y) or UDim2.new(1, 0, 0, 48)
-        Utils:Tween(DropdownFrame, {Size = TargetSize}, 0.3)
-        Utils:Tween(DrpStroke, {Color = DropdownOpened and Config.Theme.Accent or Config.Theme.Outline}, 0.3)
-    end)
-
-    Utils:Tween(DropdownFrame, {GroupTransparency = 0}, 0.3)
-    return DropdownFrame
-end
---========================================================================
--- [15] COLOR PICKER RGB (Interaktywna paleta barw - Styl Pepsi/MacLib)
---========================================================================
-
-function Phantom:CreateColorPicker(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Color Picker"
-    local Default = options.Default or Color3.fromRGB(0, 170, 255)
-    local Flag = options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local PickerOpened = false
-    local Hue, Sat, Val = Default:ToHSV()
-
-    local ColorFrame = Instance.new("TextButton")
-    ColorFrame.Name = Name
-    ColorFrame.Parent = tab.Page
-    ColorFrame.Size = UDim2.new(1, 0, 0, 48)
-    ColorFrame.BackgroundColor3 = Config.Theme.Secondary
-    ColorFrame.BorderSizePixel = 0
-    ColorFrame.Text = ""
-    ColorFrame.AutoButtonColor = false
-    ColorFrame.ClipsDescendants = true
-    ColorFrame.GroupTransparency = 1
-
-    local ClrCorner = Instance.new("UICorner")
-    ClrCorner.CornerRadius = UDim.new(0, 8)
-    ClrCorner.Parent = ColorFrame
-
-    local ClrStroke = Instance.new("UIStroke")
-    ClrStroke.Color = Config.Theme.Outline
-    ClrStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    ClrStroke.Transparency = 0.2
-    ClrStroke.Parent = ColorFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = ColorFrame
-    Title.Position = UDim2.new(0, 15, 0, 0)
-    Title.Size = UDim2.new(1, -70, 1, 0)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    -- Podgląd koloru (Przycisk otwierający)
-    local ColorBox = Instance.new("Frame")
-    ColorBox.Parent = ColorFrame
-    ColorBox.Position = UDim2.new(1, -50, 0.5, -10)
-    ColorBox.Size = UDim2.new(0, 35, 0, 20)
-    ColorBox.BackgroundColor3 = Default
-    
-    local BoxCorner = Instance.new("UICorner")
-    BoxCorner.CornerRadius = UDim.new(0, 4)
-    BoxCorner.Parent = ColorBox
-
-    -- Kontener Pickera (Rozwijany)
-    local PickerContainer = Instance.new("Frame")
-    PickerContainer.Name = "Picker"
-    PickerContainer.Parent = ColorFrame
-    PickerContainer.Position = UDim2.new(0, 10, 0, 48)
-    PickerContainer.Size = UDim2.new(1, -20, 0, 0)
-    PickerContainer.BackgroundTransparency = 1
-    PickerContainer.Visible = false
-
-    -- Saturation/Value Canvas (Uproszczony podgląd dla stabilności)
-    local SVCanvas = Instance.new("ImageButton")
-    SVCanvas.Parent = PickerContainer
-    SVCanvas.Position = UDim2.new(0, 5, 0, 5)
-    SVCanvas.Size = UDim2.new(0, 150, 0, 100)
-    SVCanvas.Image = "rbxassetid://4155801252" -- Gradient SV
-    
-    -- Hue Slider (Tęcza)
-    local HueSlider = Instance.new("ImageButton")
-    HueSlider.Parent = PickerContainer
-    HueSlider.Position = UDim2.new(0, 165, 0, 5)
-    HueSlider.Size = UDim2.new(0, 20, 0, 100)
-    HueSlider.Image = "rbxassetid://3641079629" -- Hue Gradient
-
-    local function UpdateColor()
-        local NewColor = Color3.fromHSV(Hue, Sat, Val)
-        ColorBox.BackgroundColor3 = NewColor
-        self.Flags[Flag] = NewColor
-        task.spawn(callback, NewColor)
-    end
-
-    -- Obsługa Hue
-    local HueDragging = false
-    HueSlider.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then HueDragging = true end
-    end)
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then HueDragging = false end
-    end)
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if HueDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local pos = math.clamp((input.Position.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
-            Hue = 1 - pos
-            UpdateColor()
-        end
-    end)
-
-    -- Toggle Pickera
-    ColorFrame.MouseButton1Click:Connect(function()
-        PickerOpened = not PickerOpened
-        PickerContainer.Visible = PickerOpened
-        local TargetSize = PickerOpened and UDim2.new(1, 0, 0, 160) or UDim2.new(1, 0, 0, 48)
-        Utils:Tween(ColorFrame, {Size = TargetSize}, 0.3)
-        Utils:Tween(ClrStroke, {Color = PickerOpened and Config.Theme.Accent or Config.Theme.Outline}, 0.3)
-    end)
-
-    Utils:Tween(ColorFrame, {GroupTransparency = 0}, 0.3)
-    return ColorFrame
-end
---========================================================================
--- [16] KEYBIND SYSTEM (System przypisywania klawiszy - Styl Fluent/Rayfield)
---========================================================================
-
-function Phantom:CreateKeybind(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Keybind"
-    local Default = options.Default or Enum.KeyCode.F
-    local Flag = options.Flag or Name
-    
-    local Keybind = {
-        Value = Default,
-        Binding = false
-    }
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local KeybindFrame = Instance.new("TextButton")
-    KeybindFrame.Name = Name
-    KeybindFrame.Parent = tab.Page
-    KeybindFrame.Size = UDim2.new(1, 0, 0, 48)
-    KeybindFrame.BackgroundColor3 = Config.Theme.Secondary
-    KeybindFrame.BorderSizePixel = 0
-    KeybindFrame.Text = ""
-    KeybindFrame.AutoButtonColor = false
-    KeybindFrame.ClipsDescendants = true
-    KeybindFrame.GroupTransparency = 1
-
-    local KbdCorner = Instance.new("UICorner")
-    KbdCorner.CornerRadius = UDim.new(0, 8)
-    KbdCorner.Parent = KeybindFrame
-
-    local KbdStroke = Instance.new("UIStroke")
-    KbdStroke.Color = Config.Theme.Outline
-    KbdStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    KbdStroke.Transparency = 0.2
-    KbdStroke.Parent = KeybindFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = KeybindFrame
-    Title.Position = UDim2.new(0, 15, 0, 0)
-    Title.Size = UDim2.new(1, -100, 1, 0)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    -- Wyświetlacz Klawisza (Przycisk)
-    local BindBox = Instance.new("Frame")
-    BindBox.Parent = KeybindFrame
-    BindBox.Position = UDim2.new(1, -85, 0.5, -11)
-    BindBox.Size = UDim2.new(0, 70, 0, 22)
-    BindBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    
-    local BoxCorner = Instance.new("UICorner")
-    BoxCorner.CornerRadius = UDim.new(0, 4)
-    BoxCorner.Parent = BindBox
-
-    local BindText = Instance.new("TextLabel")
-    BindText.Parent = BindBox
-    BindText.Size = UDim2.new(1, 0, 1, 0)
-    BindText.Text = Keybind.Value.Name
-    BindText.Font = Enum.Font.GothamMedium
-    BindText.TextColor3 = Config.Theme.Accent
-    BindText.TextSize = 12
-    BindText.BackgroundTransparency = 1
-
-    -- Logika Bindowania
-    KeybindFrame.MouseButton1Click:Connect(function()
-        if Keybind.Binding then return end
-        
-        Keybind.Binding = true
-        BindText.Text = "..."
-        Utils:Tween(KbdStroke, {Color = Config.Theme.Accent, Transparency = 0}, 0.2)
-        
-        local Connection
-        Connection = game:GetService("UserInputService").InputBegan:Connect(function(input)
-            local Key = (input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode) or (input.UserInputType ~= Enum.UserInputType.Keyboard and input.UserInputType)
-            
-            if Key and Key ~= Enum.KeyCode.Escape then
-                Keybind.Value = Key
-                BindText.Text = Key.Name:gsub("MouseButton", "MB")
-                self.Flags[Flag] = Key
-                
-                Keybind.Binding = false
-                Utils:Tween(KbdStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-                Connection:Disconnect()
-            elseif Key == Enum.KeyCode.Escape then
-                Keybind.Binding = false
-                BindText.Text = Keybind.Value.Name
-                Utils:Tween(KbdStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-                Connection:Disconnect()
-            end
-        end)
-    end)
-
-    -- Globalny nasłuch naciśnięcia
-    game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
-        if not gpe and not Keybind.Binding then
-            local Key = (input.KeyCode ~= Enum.KeyCode.Unknown and input.KeyCode) or (input.UserInputType ~= Enum.UserInputType.Keyboard and input.UserInputType)
-            if Key == Keybind.Value then
-                task.spawn(callback)
-            end
-        end
-    end)
-
-    Utils:Tween(KeybindFrame, {GroupTransparency = 0}, 0.3)
-    return KeybindFrame
-end
---========================================================================
--- [17] TEXTBOX STANDARD (Pole tekstowe z obsługą placeholderów)
---========================================================================
-
-function Phantom:CreateTextbox(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = typeof(options) == "table" and options.Name or options or "Textbox"
-    local Placeholder = options.Placeholder or "Enter text..."
-    local Default = options.Default or ""
-    local ClearOnFocus = options.ClearOnFocus or false
-    local Flag = options.Flag or Name
-    
-    self.Flags[Flag] = Default
-    task.wait(Config.Waits.RenderElement)
-
-    local TextboxFrame = Instance.new("Frame")
-    TextboxFrame.Name = Name
-    TextboxFrame.Parent = tab.Page
-    TextboxFrame.Size = UDim2.new(1, 0, 0, 48)
-    TextboxFrame.BackgroundColor3 = Config.Theme.Secondary
-    TextboxFrame.BorderSizePixel = 0
-    TextboxFrame.GroupTransparency = 1
-
-    local TxtCorner = Instance.new("UICorner")
-    TxtCorner.CornerRadius = UDim.new(0, 8)
-    TxtCorner.Parent = TextboxFrame
-
-    local TxtStroke = Instance.new("UIStroke")
-    TxtStroke.Color = Config.Theme.Outline
-    TxtStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    TxtStroke.Transparency = 0.2
-    TxtStroke.Parent = TextboxFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = TextboxFrame
-    Title.Position = UDim2.new(0, 15, 0, 0)
-    Title.Size = UDim2.new(1, -160, 1, 0)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    -- Kontener na Input (Style: Fluent/MacLib)
-    local InputFrame = Instance.new("Frame")
-    InputFrame.Parent = TextboxFrame
-    InputFrame.Position = UDim2.new(1, -145, 0.5, -12)
-    InputFrame.Size = UDim2.new(0, 130, 0, 24)
-    InputFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    
-    local InpCorner = Instance.new("UICorner")
-    InpCorner.CornerRadius = UDim.new(0, 4)
-    InpCorner.Parent = InputFrame
-
-    local Input = Instance.new("TextBox")
-    Input.Parent = InputFrame
-    Input.Size = UDim2.new(1, -10, 1, 0)
-    Input.Position = UDim2.new(0, 5, 0, 0)
-    Input.BackgroundTransparency = 1
-    Input.Text = Default
-    Input.PlaceholderText = Placeholder
-    Input.PlaceholderColor3 = Config.Theme.TextMuted
-    Input.TextColor3 = Config.Theme.Accent
-    Input.Font = Enum.Font.GothamMedium
-    Input.TextSize = 12
-    Input.ClearTextOnFocus = ClearOnFocus
-
-    -- Logika
-    Input.FocusLost:Connect(function(enterPressed)
-        self.Flags[Flag] = Input.Text
-        Utils:Tween(TxtStroke, {Color = Config.Theme.Outline, Transparency = 0.2}, 0.2)
-        task.spawn(callback, Input.Text)
-    end)
-
-    Input.Focused:Connect(function()
-        Utils:Tween(TxtStroke, {Color = Config.Theme.Accent, Transparency = 0}, 0.2)
-    end)
-
-    -- Animacja pojawienia się
-    Utils:Tween(TextboxFrame, {GroupTransparency = 0}, 0.3)
-
-    return TextboxFrame
-end
---========================================================================
--- [18] CONFIG MANAGER & AUTO-SAVE (System zapisu i odczytu ustawień)
---========================================================================
-
-local HttpService = game:GetService("HttpService")
-
-function Phantom:SaveConfig(name)
-    local FolderName = "Phantom_Configs"
-    if not isfolder(FolderName) then makefolder(FolderName) end
-    
-    local Data = {}
-    for flag, value in pairs(self.Flags) do
-        -- Konwersja typów specjalnych na format JSON-friendly
-        if typeof(value) == "Color3" then
-            Data[flag] = {R = value.R, G = value.G, B = value.B, Type = "Color3"}
-        elseif typeof(value) == "EnumItem" then
-            Data[flag] = {Value = tostring(value), Type = "Enum"}
-        else
-            Data[flag] = value
+            error("[Phantom] Błąd callbacku: " .. tostring(result), 2)
         end
     end
-    
-    local FileName = FolderName .. "/" .. (name or "Default") .. ".json"
-    writefile(FileName, HttpService:JSONEncode(Data))
+    return success, result
 end
 
-function Phantom:LoadConfig(name)
-    local FileName = "Phantom_Configs/" .. (name or "Default") .. ".json"
-    if not isfile(FileName) then return end
-    
-    local RawData = readfile(FileName)
-    local Success, Data = pcall(function() return HttpService:JSONDecode(RawData) end)
-    
-    if Success then
-        for flag, value in pairs(Data) do
-            if typeof(value) == "table" and value.Type == "Color3" then
-                self.Flags[flag] = Color3.new(value.R, value.G, value.B)
-            elseif typeof(value) == "table" and value.Type == "Enum" then
-                -- Odbudowa Enum z nazwy stringa
-                local EnumType = tostring(value.Value):split(".")[1]
-                local EnumItem = tostring(value.Value):split(".")[2]
-                pcall(function() self.Flags[flag] = Enum[EnumType][EnumItem] end)
-            else
-                self.Flags[flag] = value
-            end
-        end
-    end
-end
-
---========================================================================
--- [19] FINAL INITIALIZATION (Zamykanie szkieletu)
---========================================================================
-
--- Przykład użycia całego systemu:
--- local MyWindow = Phantom:CreateWindow({Name = "PHANTOM PRIME", SubName = "v1.0.2"})
--- local MainTab = MyWindow:CreateTab("Main")
--- Phantom:InitSearch(MyWindow) -- Aktywacja wyszukiwarki
-
---========================================================================
--- [20] NOTIFICATION SYSTEM V2 (Globalne powiadomienia typu Toast)
---========================================================================
-
-function Phantom:Notify(options)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local TitleText = options.Title or "Notification"
-    local ContentText = options.Content or "No information provided."
-    local Duration = options.Duration or 5
-    local Type = options.Type or "Info" -- Info, Success, Error
-    
-    -- Wybór koloru na podstawie typu
-    local TypeColor = Config.Theme.Accent
-    if Type == "Success" then TypeColor = Color3.fromRGB(0, 255, 120)
-    elseif Type == "Error" then TypeColor = Color3.fromRGB(255, 70, 70) end
-
-    -- Kontener powiadomienia
-    local NotifyFrame = Instance.new("Frame")
-    NotifyFrame.Name = "Notify_" .. TitleText
-    NotifyFrame.Parent = self.ScreenGui
-    NotifyFrame.Size = UDim2.new(0, 280, 0, 70)
-    -- Startowa pozycja poza ekranem (po prawej)
-    NotifyFrame.Position = UDim2.new(1, 20, 1, -100 - (#self.ScreenGui:GetChildren() * 80))
-    NotifyFrame.BackgroundColor3 = Config.Theme.Main
-    NotifyFrame.BorderSizePixel = 0
-    NotifyFrame.ZIndex = 100
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 8)
-    Corner.Parent = NotifyFrame
-
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = TypeColor
-    Stroke.Thickness = 1
-    Stroke.Transparency = 0.5
-    Stroke.Parent = NotifyFrame
-
-    -- Teksty
-    local TLabel = Instance.new("TextLabel")
-    TLabel.Parent = NotifyFrame
-    TLabel.Position = UDim2.new(0, 15, 0, 10)
-    TLabel.Size = UDim2.new(1, -30, 0, 15)
-    TLabel.Text = TitleText:upper()
-    TLabel.Font = Enum.Font.GothamBold
-    TLabel.TextColor3 = TypeColor
-    TLabel.TextSize = 12
-    TLabel.TextXAlignment = Enum.TextXAlignment.Left
-    TLabel.BackgroundTransparency = 1
-
-    local CLabel = Instance.new("TextLabel")
-    CLabel.Parent = NotifyFrame
-    CLabel.Position = UDim2.new(0, 15, 0, 28)
-    CLabel.Size = UDim2.new(1, -30, 0, 30)
-    CLabel.Text = ContentText
-    CLabel.Font = Enum.Font.Gotham
-    CLabel.TextColor3 = Config.Theme.Text
-    CLabel.TextSize = 12
-    CLabel.TextXAlignment = Enum.TextXAlignment.Left
-    CLabel.TextWrapped = true
-    CLabel.BackgroundTransparency = 1
-
-    -- Pasek postępu (Timer)
-    local TimerBar = Instance.new("Frame")
-    TimerBar.Parent = NotifyFrame
-    TimerBar.Position = UDim2.new(0, 0, 1, -3)
-    TimerBar.Size = UDim2.new(1, 0, 0, 3)
-    TimerBar.BackgroundColor3 = TypeColor
-    TimerBar.BorderSizePixel = 0
-    
-    local TimerCorner = Instance.new("UICorner")
-    TimerCorner.CornerRadius = UDim.new(0, 8)
-    TimerCorner.Parent = TimerBar
-
-    -- Animacja wejścia
-    Utils:Tween(NotifyFrame, {Position = UDim2.new(1, -300, 1, -100 - (#self.ScreenGui:GetChildren() * 5))}, 0.5, Enum.EasingStyle.Quart)
-
-    -- Logika znikania
-    task.spawn(function()
-        Utils:Tween(TimerBar, {Size = UDim2.new(0, 0, 0, 3)}, Duration, Enum.EasingStyle.Linear)
-        task.wait(Duration)
-        Utils:Tween(NotifyFrame, {Position = UDim2.new(1, 20, NotifyFrame.Position.Y.Scale, NotifyFrame.Position.Y.Offset)}, 0.5, Enum.EasingStyle.Quart)
-        task.wait(0.5)
-        NotifyFrame:Destroy()
-    end)
-end
---========================================================================
--- [21] TOOLTIPS SYSTEM (System dynamicznych podpowiedzi przy najechaniu)
---========================================================================
-
-function Phantom:CreateTooltip(target, text)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local TooltipFrame = Instance.new("Frame")
-    TooltipFrame.Name = "Tooltip"
-    TooltipFrame.Parent = self.ScreenGui
-    TooltipFrame.BackgroundColor3 = Config.Theme.Main
-    TooltipFrame.BorderSizePixel = 0
-    TooltipFrame.ZIndex = 1000
-    TooltipFrame.Visible = false
-    TooltipFrame.AutomaticSize = Enum.AutomaticSize.XY
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = TooltipFrame
-
-    local Stroke = Instance.new("UIStroke")
-    Stroke.Color = Config.Theme.Outline
-    Stroke.Thickness = 1
-    Stroke.Parent = TooltipFrame
-
-    local Label = Instance.new("TextLabel")
-    Label.Parent = TooltipFrame
-    Label.PaddingLeft = UDim.new(0, 8)
-    Label.PaddingRight = UDim.new(0, 8)
-    Label.Size = UDim2.new(0, 0, 0, 24) -- Szerokość sterowana AutomaticSize
-    Label.Text = text
-    Label.Font = Enum.Font.Gotham
-    Label.TextColor3 = Config.Theme.Text
-    Label.TextSize = 12
-    Label.BackgroundTransparency = 1
-    Label.AutomaticSize = Enum.AutomaticSize.X
-
-    local Padding = Instance.new("UIPadding")
-    Padding.PaddingLeft = UDim.new(0, 8)
-    Padding.PaddingRight = UDim.new(0, 8)
-    Padding.Parent = Label
-
-    local hoverTask = nil
-
-    target.MouseEnter:Connect(function()
-        hoverTask = task.delay(0.5, function() -- Delay 0.5s (Standard w UI)
-            TooltipFrame.Visible = true
-            TooltipFrame.GroupTransparency = 1
-            Utils:Tween(TooltipFrame, {GroupTransparency = 0}, 0.2)
-        end)
-    end)
-
-    target.MouseLeave:Connect(function()
-        if hoverTask then task.cancel(hoverTask) end
-        TooltipFrame.Visible = false
-    end)
-
-    -- Śledzenie myszy
-    game:GetService("RunService").RenderStepped:Connect(function()
-        if TooltipFrame.Visible then
-            local MousePos = game:GetService("UserInputService"):GetMouseLocation()
-            -- Offset 15px w dół i w prawo od kursora
-            TooltipFrame.Position = UDim2.new(0, MousePos.X + 15, 0, MousePos.Y - 25)
-        end
-    end)
-end
---========================================================================
--- [22] STATUS BAR & PERFORMANCE MONITOR (FPS, Ping, RAM Monitor)
---========================================================================
-
-function Phantom:InitStatusBar(Window)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local StatusBar = Instance.new("Frame")
-    StatusBar.Name = "StatusBar"
-    StatusBar.Parent = Window.Main
-    StatusBar.Position = UDim2.new(0, 0, 1, -25)
-    StatusBar.Size = UDim2.new(1, 0, 0, 25)
-    StatusBar.BackgroundColor3 = Config.Theme.Secondary
-    StatusBar.BackgroundTransparency = 0.5
-    StatusBar.BorderSizePixel = 0
-    
-    local SBLine = Instance.new("Frame")
-    SBLine.Name = "TopLine"
-    SBLine.Parent = StatusBar
-    SBLine.Size = UDim2.new(1, 0, 0, 1)
-    SBLine.BackgroundColor3 = Config.Theme.Outline
-    SBLine.BackgroundTransparency = 0.5
-    SBLine.BorderSizePixel = 0
-
-    local StatHolder = Instance.new("Frame")
-    StatHolder.Parent = StatusBar
-    StatHolder.Size = UDim2.new(1, -20, 1, 0)
-    StatHolder.Position = UDim2.new(0, 10, 0, 0)
-    StatHolder.BackgroundTransparency = 1
-
-    local StatList = Instance.new("UIListLayout")
-    StatList.Parent = StatHolder
-    StatList.FillDirection = Enum.FillDirection.Horizontal
-    StatList.VerticalAlignment = Enum.VerticalAlignment.Center
-    StatList.Padding = UDim.new(0, 15)
-
-    local function CreateStat(name, icon)
-        local Label = Instance.new("TextLabel")
-        Label.Name = name
-        Label.Parent = StatHolder
-        Label.AutomaticSize = Enum.AutomaticSize.X
-        Label.Size = UDim2.new(0, 0, 1, 0)
-        Label.BackgroundTransparency = 1
-        Label.Font = Enum.Font.GothamMedium
-        Label.TextColor3 = Config.Theme.TextMuted
-        Label.TextSize = 10
-        Label.Text = icon .. " " .. name .. ": --"
-        return Label
-    end
-
-    local FPSLabel = CreateStat("FPS", "⚡")
-    local PingLabel = CreateStat("PING", "📡")
-    local MemLabel = CreateStat("MEM", "💾")
-
-    -- Silnik Monitoringu
-    local LastIteration = tick()
-    local FrameLog = {}
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        local CurrentTime = tick()
-        local DeltaTime = CurrentTime - LastIteration
-        LastIteration = CurrentTime
-        
-        -- FPS Logic
-        table.insert(FrameLog, DeltaTime)
-        if #FrameLog > 60 then table.remove(FrameLog, 1) end
-        
-        local AvgDelta = 0
-        for _, v in pairs(FrameLog) do AvgDelta = AvgDelta + v end
-        local FPS = math.floor(1 / (AvgDelta / #FrameLog))
-        
-        -- Update Labels
-        FPSLabel.Text = "⚡ FPS: " .. FPS
-        
-        -- Ping Logic (Approximate)
-        local Ping = math.floor(game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue())
-        PingLabel.Text = "📡 PING: " .. Ping .. "ms"
-        
-        -- Memory Logic
-        local Mem = math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb())
-        MemLabel.Text = "💾 MEM: " .. Mem .. "MB"
-        
-        -- Kolorowanie dynamiczne (Warning colors)
-        FPSLabel.TextColor3 = FPS < 30 and Color3.fromRGB(255, 100, 100) or Config.Theme.TextMuted
-        PingLabel.TextColor3 = Ping > 150 and Color3.fromRGB(255, 150, 50) or Config.Theme.TextMuted
-    end)
-end
---========================================================================
--- [23] SECTION SYSTEM (Grupowanie i organizacja elementów w zakładkach)
---========================================================================
-
-function Phantom:CreateSection(tab, name)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    task.wait(Config.Waits.RenderElement)
-
-    local SectionFrame = Instance.new("Frame")
-    SectionFrame.Name = "Section_" .. name
-    SectionFrame.Parent = tab.Page
-    SectionFrame.Size = UDim2.new(1, 0, 0, 35) -- Stała wysokość nagłówka
-    SectionFrame.BackgroundTransparency = 1
-    SectionFrame.ClipsDescendants = true
-
-    -- Kontener na linię i tekst
-    local Layout = Instance.new("Frame")
-    Layout.Parent = SectionFrame
-    Layout.Size = UDim2.new(1, 0, 1, 0)
-    Layout.BackgroundTransparency = 1
-
-    local SectionLabel = Instance.new("TextLabel")
-    SectionLabel.Parent = Layout
-    SectionLabel.Position = UDim2.new(0, 5, 0, 10)
-    SectionLabel.Size = UDim2.new(0, 0, 0, 15)
-    SectionLabel.Text = name:upper()
-    SectionLabel.Font = Enum.Font.GothamBold
-    SectionLabel.TextColor3 = Config.Theme.Accent
-    SectionLabel.TextSize = 11
-    SectionLabel.TextXAlignment = Enum.TextXAlignment.Left
-    SectionLabel.BackgroundTransparency = 1
-    SectionLabel.AutomaticSize = Enum.AutomaticSize.X
-
-    local Line = Instance.new("Frame")
-    Line.Parent = Layout
-    Line.Position = UDim2.new(0, SectionLabel.AbsoluteSize.X + 15, 0.5, 7)
-    Line.Size = UDim2.new(1, -(SectionLabel.AbsoluteSize.X + 25), 0, 1)
-    Line.BackgroundColor3 = Config.Theme.Outline
-    Line.BackgroundTransparency = 0.6
-    Line.BorderSizePixel = 0
-
-    -- Aktualizacja linii po renderowaniu tekstu
-    SectionLabel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        Line.Position = UDim2.new(0, SectionLabel.AbsoluteSize.X + 15, 0.5, 7)
-        Line.Size = UDim2.new(1, -(SectionLabel.AbsoluteSize.X + 25), 0, 1)
-    end)
-
-    return SectionFrame
-end
---========================================================================
--- [24] TAB NOTIFICATIONS (System Badge'y na zakładkach - Styl MacLib)
---========================================================================
-
-function Phantom:SetTabBadge(tab, count)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    -- Jeśli badge już istnieje, aktualizujemy go lub usuwamy
-    local ExistingBadge = tab.Button:FindFirstChild("Badge")
-    
-    if count == 0 or count == nil then
-        if ExistingBadge then ExistingBadge:Destroy() end
-        return
-    end
-
-    if not ExistingBadge then
-        ExistingBadge = Instance.new("Frame")
-        ExistingBadge.Name = "Badge"
-        ExistingBadge.Parent = tab.Button
-        ExistingBadge.Position = UDim2.new(1, -18, 0, 8)
-        ExistingBadge.Size = UDim2.new(0, 14, 0, 14)
-        ExistingBadge.BackgroundColor3 = Config.Theme.Accent
-        ExistingBadge.BorderSizePixel = 0
-        ExistingBadge.ZIndex = 5
-
-        local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(1, 0)
-        Corner.Parent = ExistingBadge
-
-        local Stroke = Instance.new("UIStroke")
-        Stroke.Color = Config.Theme.Main
-        Stroke.Thickness = 1.5
-        Stroke.Parent = ExistingBadge
-
-        local Label = Instance.new("TextLabel")
-        Label.Parent = ExistingBadge
-        Label.Size = UDim2.new(1, 0, 1, 0)
-        Label.BackgroundTransparency = 1
-        Label.Text = tostring(count)
-        Label.Font = Enum.Font.GothamBold
-        Label.TextColor3 = Color3.fromRGB(255, 255, 255)
-        Label.TextSize = 9
-        Label.Parent = ExistingBadge
-    else
-        ExistingBadge.TextLabel.Text = tostring(count)
-    end
-
-    -- Szybka animacja "pulsu" przy zmianie
-    Utils:Tween(ExistingBadge, {Size = UDim2.new(0, 18, 0, 18)}, 0.1)
-    task.wait(0.1)
-    Utils:Tween(ExistingBadge, {Size = UDim2.new(0, 14, 0, 14)}, 0.1)
-end
---========================================================================
--- [25] MULTI-SEARCH DROPDOWN (Najbardziej zaawansowany moduł wyboru)
---========================================================================
-
-function Phantom:CreateMultiSearchDropdown(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = options.Name or "Advanced Multi-Select"
-    local List = options.Options or {}
-    local Flag = options.Flag or Name
-    local Selected = {} -- Tabela przechowująca stan zaznaczenia [nazwa] = true/false
-    
-    self.Flags[Flag] = {}
-    task.wait(Config.Waits.RenderElement)
-
-    local DropdownOpened = false
-    local OptionInstances = {}
-
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = Name
-    MainFrame.Parent = tab.Page
-    MainFrame.Size = UDim2.new(1, 0, 0, 48)
-    MainFrame.BackgroundColor3 = Config.Theme.Secondary
-    MainFrame.ClipsDescendants = true
-    MainFrame.GroupTransparency = 1
-    
-    local MCorner = Instance.new("UICorner")
-    MCorner.CornerRadius = UDim.new(0, 8)
-    MCorner.Parent = MainFrame
-
-    local MStroke = Instance.new("UIStroke")
-    MStroke.Color = Config.Theme.Outline
-    MStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-    MStroke.Transparency = 0.2
-    MStroke.Parent = MainFrame
-
-    -- Header (Klikalny)
-    local Header = Instance.new("TextButton")
-    Header.Size = UDim2.new(1, 0, 0, 48)
-    Header.BackgroundTransparency = 1
-    Header.Text = ""
-    Header.Parent = MainFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Position = UDim2.new(0, 15, 0, 10)
-    Title.Size = UDim2.new(1, -60, 0, 14)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local Subtitle = Instance.new("TextLabel")
-    Subtitle.Parent = Header
-    Subtitle.Position = UDim2.new(0, 15, 0, 26)
-    Subtitle.Size = UDim2.new(1, -60, 0, 12)
-    Subtitle.Text = "Click to search & select..."
-    Subtitle.Font = Enum.Font.Gotham
-    Subtitle.TextColor3 = Config.Theme.Accent
-    Subtitle.TextSize = 11
-    Subtitle.TextXAlignment = Enum.TextXAlignment.Left
-    Subtitle.BackgroundTransparency = 1
-
-    -- Wyszukiwarka
-    local SearchInput = Instance.new("TextBox")
-    SearchInput.Parent = MainFrame
-    SearchInput.Position = UDim2.new(0, 10, 0, 55)
-    SearchInput.Size = UDim2.new(1, -20, 0, 30)
-    SearchInput.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    SearchInput.PlaceholderText = "Search players/items..."
-    SearchInput.Text = ""
-    SearchInput.Font = Enum.Font.Gotham
-    SearchInput.TextColor3 = Config.Theme.Text
-    SearchInput.TextSize = 12
-    SearchInput.Visible = false
-    
-    local SCorner = Instance.new("UICorner")
-    SCorner.CornerRadius = UDim.new(0, 6)
-    SCorner.Parent = SearchInput
-
-    -- Lista Opcji (Scrollable)
-    local ListHolder = Instance.new("ScrollingFrame")
-    ListHolder.Parent = MainFrame
-    ListHolder.Position = UDim2.new(0, 10, 0, 95)
-    ListHolder.Size = UDim2.new(1, -20, 0, 0)
-    ListHolder.BackgroundTransparency = 1
-    ListHolder.ScrollBarThickness = 2
-    ListHolder.ScrollBarImageColor3 = Config.Theme.Accent
-
-    local UIList = Instance.new("UIListLayout")
-    UIList.Parent = ListHolder
-    UIList.Padding = UDim.new(0, 4)
-
-    local function UpdateFlag()
-        local results = {}
-        for name, state in pairs(Selected) do if state then table.insert(results, name) end end
-        self.Flags[Flag] = results
-        Subtitle.Text = #results > 0 and "Selected: " .. table.concat(results, ", ") or "None selected"
-        if #Subtitle.Text > 40 then Subtitle.Text = #results .. " items selected" end
-        task.spawn(callback, results)
-    end
-
-    local function AddOption(val)
-        local Btn = Instance.new("TextButton")
-        Btn.Name = val
-        Btn.Parent = ListHolder
-        Btn.Size = UDim2.new(1, -5, 0, 30)
-        Btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-        Btn.Text = "  " .. val
-        Btn.Font = Enum.Font.Gotham
-        Btn.TextColor3 = Config.Theme.TextMuted
-        Btn.TextSize = 12
-        Btn.TextXAlignment = Enum.TextXAlignment.Left
-        
-        local BCorner = Instance.new("UICorner")
-        BCorner.CornerRadius = UDim.new(0, 4)
-        BCorner.Parent = Btn
-
-        Btn.MouseButton1Click:Connect(function()
-            Selected[val] = not Selected[val]
-            Utils:Tween(Btn, {TextColor3 = Selected[val] and Config.Theme.Accent or Config.Theme.TextMuted}, 0.2)
-            UpdateFlag()
-        end)
-        
-        OptionInstances[val] = Btn
-    end
-
-    for _, v in pairs(List) do AddOption(v) end
-
-    -- Silnik Szukania
-    SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
-        local query = SearchInput.Text:lower()
-        for name, btn in pairs(OptionInstances) do
-            btn.Visible = (query == "" or name:lower():find(query))
-        end
-    end)
-
-    -- Toggle
-    Header.MouseButton1Click:Connect(function()
-        DropdownOpened = not DropdownOpened
-        SearchInput.Visible = DropdownOpened
-        local TargetSize = DropdownOpened and UDim2.new(1, 0, 0, 250) or UDim2.new(1, 0, 0, 48)
-        local ListSize = DropdownOpened and UDim2.new(1, -20, 0, 140) or UDim2.new(1, -20, 0, 0)
-        
-        Utils:Tween(MainFrame, {Size = TargetSize}, 0.3)
-        Utils:Tween(ListHolder, {Size = ListSize}, 0.3)
-        Utils:Tween(MStroke, {Color = DropdownOpened and Config.Theme.Accent or Config.Theme.Outline}, 0.3)
-    end)
-
-    Utils:Tween(MainFrame, {GroupTransparency = 0}, 0.3)
-    return MainFrame
-end
---========================================================================
--- [27] TAB CONTROLLER & RESIZE ENGINE (Logika przełączania i skalowania)
---========================================================================
-
-function Phantom:CreateTab(window, name, icon)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Tab = {Active = false}
-
-    -- 1. Tworzenie Strony (ScrollingFrame)
-    local Page = Instance.new("ScrollingFrame")
-    Page.Name = name .. "_Page"
-    Page.Parent = window.Container
-    Page.Size = UDim2.new(1, 0, 1, 0)
-    Page.BackgroundTransparency = 1
-    Page.BorderSizePixel = 0
-    Page.Visible = false
-    Page.ScrollBarThickness = 2
-    Page.ScrollBarImageColor3 = Config.Theme.Accent
-    Page.CanvasSize = UDim2.new(0, 0, 0, 0)
-    
-    local PageLayout = Instance.new("UIListLayout")
-    PageLayout.Parent = Page
-    PageLayout.Padding = UDim.new(0, 8)
-    PageLayout.SortOrder = Enum.SortOrder.LayoutOrder
-
-    local PagePadding = Instance.new("UIPadding")
-    PagePadding.Parent = Page
-    PagePadding.PaddingTop = UDim.new(0, 10)
-    PagePadding.PaddingLeft = UDim.new(0, 10)
-
-    -- 2. Przycisk Zakładki w Sidebarze
-    local TabButton = Instance.new("TextButton")
-    TabButton.Name = name .. "_Tab"
-    TabButton.Parent = window.TabHolder
-    TabButton.Size = UDim2.new(1, -10, 0, 32)
-    TabButton.BackgroundColor3 = Config.Theme.Accent
-    TabButton.BackgroundTransparency = 1
-    TabButton.Text = ""
-    TabButton.AutoButtonColor = false
-
-    local TBCorner = Instance.new("UICorner")
-    TBCorner.CornerRadius = UDim.new(0, 6)
-    TBCorner.Parent = TabButton
-
-    local TText = Instance.new("TextLabel")
-    TText.Parent = TabButton
-    TText.Size = UDim2.new(1, 0, 1, 0)
-    TText.Position = UDim2.new(0, 10, 0, 0)
-    TText.Text = name
-    TText.Font = Enum.Font.GothamMedium
-    TText.TextColor3 = Config.Theme.TextMuted
-    TText.TextSize = 13
-    TText.TextXAlignment = Enum.TextXAlignment.Left
-    TText.BackgroundTransparency = 1
-
-    -- Funkcja aktywacji tabu
-    local function Activate()
-        -- Dezaktywacja innych tabów w tym oknie
-        for _, otherTab in pairs(window.Tabs) do
-            otherTab.Active = false
-            otherTab.Page.Visible = false
-            Utils:Tween(otherTab.Button.TextLabel, {TextColor3 = Config.Theme.TextMuted}, 0.2)
-            Utils:Tween(otherTab.Button, {BackgroundTransparency = 1}, 0.2)
-        end
-
-        Tab.Active = true
-        Page.Visible = true
-        Page.GroupTransparency = 1
-        Utils:Tween(Page, {GroupTransparency = 0}, 0.3)
-        Utils:Tween(TText, {TextColor3 = Config.Theme.Text}, 0.2)
-        Utils:Tween(TabButton, {BackgroundTransparency = 0.8}, 0.2)
-    end
-
-    TabButton.MouseButton1Click:Connect(Activate)
-
-    -- Jeśli to pierwszy tab, aktywuj go od razu
-    if #window.Tabs == 0 then Activate() end
-
-    Tab.Page = Page
-    Tab.Button = TabButton
-    table.insert(window.Tabs, Tab)
-
-    return Tab
-end
-
--- 3. System Resize (Uchwyt w rogu)
-function Phantom:AddResizeHandle(window)
-    local Handle = Instance.new("ImageButton")
-    Handle.Name = "ResizeHandle"
-    Handle.Parent = window.Main
-    Handle.Position = UDim2.new(1, -15, 1, -15)
-    Handle.Size = UDim2.new(0, 15, 0, 15)
-    Handle.BackgroundTransparency = 1
-    Handle.Image = "rbxassetid://6034170308" -- Ikona narożnika
-    Handle.ImageColor3 = self.Config.Theme.TextMuted
-
-    local dragging = false
-    local startPos, startSize
-
-    Handle.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            startPos = input.Position
-            startSize = window.Main.Size
-        end
-    end)
-
-    game:GetService("UserInputService").InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - startPos
-            window.Main.Size = UDim2.new(0, math.clamp(startSize.X.Offset + delta.X, 400, 800), 0, math.clamp(startSize.Y.Offset + delta.Y, 300, 600))
-        end
-    end)
-
-    game:GetService("UserInputService").InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
-    end)
-end
---========================================================================
--- [28] KEYBIND LIST WIDGET (Pływający panel aktywnych skrótów)
---========================================================================
-
-function Phantom:CreateKeybindList()
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local KeyList = {
-        Visible = true,
-        Items = {}
-    }
-
-    local KeybindFrame = Instance.new("Frame")
-    KeybindFrame.Name = "KeybindList"
-    KeybindFrame.Parent = self.ScreenGui
-    KeybindFrame.Position = UDim2.new(0, 20, 0.5, -100)
-    KeybindFrame.Size = UDim2.new(0, 180, 0, 30) -- Rozmiar startowy (tylko nagłówek)
-    KeybindFrame.BackgroundColor3 = Config.Theme.Main
-    KeybindFrame.BorderSizePixel = 0
-    KeybindFrame.AutomaticSize = Enum.AutomaticSize.Y
-
-    local KCorner = Instance.new("UICorner")
-    KCorner.CornerRadius = UDim.new(0, 8)
-    KCorner.Parent = KeybindFrame
-
-    local KStroke = Instance.new("UIStroke")
-    KStroke.Color = Config.Theme.Outline
-    KStroke.Thickness = 1
-    KStroke.Parent = KeybindFrame
-
-    local Header = Instance.new("Frame")
-    Header.Name = "Header"
-    Header.Parent = KeybindFrame
-    Header.Size = UDim2.new(1, 0, 0, 30)
-    Header.BackgroundTransparency = 1
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = Header
-    Title.Size = UDim2.new(1, 0, 1, 0)
-    Title.Text = "ACTIVE KEYBINDS"
-    Title.Font = Enum.Font.GothamBold
-    Title.TextColor3 = Config.Theme.Accent
-    Title.TextSize = 11
-    Title.BackgroundTransparency = 1
-
-    local Line = Instance.new("Frame")
-    Line.Parent = Header
-    Line.Position = UDim2.new(0, 10, 1, -1)
-    Line.Size = UDim2.new(1, -20, 0, 1)
-    Line.BackgroundColor3 = Config.Theme.Outline
-    Line.BackgroundTransparency = 0.5
-    Line.BorderSizePixel = 0
-
-    local Container = Instance.new("Frame")
-    Container.Name = "Container"
-    Container.Parent = KeybindFrame
-    Container.Position = UDim2.new(0, 0, 0, 30)
-    Container.Size = UDim2.new(1, 0, 0, 0)
-    Container.BackgroundTransparency = 1
-    Container.AutomaticSize = Enum.AutomaticSize.Y
-
-    local CLayout = Instance.new("UIListLayout")
-    CLayout.Parent = Container
-    CLayout.Padding = UDim.new(0, 5)
-
-    local CPadding = Instance.new("UIPadding")
-    CPadding.Parent = Container
-    CPadding.PaddingTop = UDim.new(0, 10)
-    CPadding.PaddingBottom = UDim.new(0, 10)
-    CPadding.PaddingLeft = UDim.new(0, 15)
-    CPadding.PaddingRight = UDim.new(0, 15)
-
-    -- Funkcja dodawania/aktualizacji binda na liście
-    function KeyList:UpdateBind(name, key, state)
-        local existing = Container:FindFirstChild(name)
-        if not existing then
-            existing = Instance.new("Frame")
-            existing.Name = name
-            existing.Size = UDim2.new(1, 0, 0, 18)
-            existing.BackgroundTransparency = 1
-            existing.Parent = Container
-
-            local NLabel = Instance.new("TextLabel")
-            NLabel.Name = "NLabel"
-            NLabel.Parent = existing
-            NLabel.Size = UDim2.new(0.7, 0, 1, 0)
-            NLabel.Text = name
-            NLabel.Font = Enum.Font.Gotham
-            NLabel.TextColor3 = Config.Theme.Text
-            NLabel.TextSize = 12
-            NLabel.TextXAlignment = Enum.TextXAlignment.Left
-            NLabel.BackgroundTransparency = 1
-
-            local KLabel = Instance.new("TextLabel")
-            KLabel.Name = "KLabel"
-            KLabel.Parent = existing
-            KLabel.Size = UDim2.new(0.3, 0, 1, 0)
-            KLabel.Position = UDim2.new(0.7, 0, 0, 0)
-            KLabel.Text = "[" .. key .. "]"
-            KLabel.Font = Enum.Font.GothamMedium
-            KLabel.TextColor3 = Config.Theme.TextMuted
-            KLabel.TextSize = 11
-            KLabel.TextXAlignment = Enum.TextXAlignment.Right
-            KLabel.BackgroundTransparency = 1
-        end
-
-        local KLabel = existing:FindFirstChild("KLabel")
-        local NLabel = existing:FindFirstChild("NLabel")
-        
-        KLabel.Text = "[" .. key .. "]"
-        NLabel.TextColor3 = state and Config.Theme.Accent or Config.Theme.Text
-    end
-
-    -- Umożliwienie przesuwania widgetu
-    Utils:Drag(KeybindFrame)
-
-    return KeyList
-end
---========================================================================
--- [29] WATERMARK SYSTEM (Znak wodny - Styl Gamesense/Neverlose)
---========================================================================
-
-function Phantom:InitWatermark()
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local WatermarkFrame = Instance.new("Frame")
-    WatermarkFrame.Name = "Watermark"
-    WatermarkFrame.Parent = self.ScreenGui
-    WatermarkFrame.Position = UDim2.new(0, 20, 0, 20) -- Pozycja w lewym górnym rogu
-    WatermarkFrame.Size = UDim2.new(0, 0, 0, 26)
-    WatermarkFrame.BackgroundColor3 = Config.Theme.Main
-    WatermarkFrame.BorderSizePixel = 0
-    WatermarkFrame.AutomaticSize = Enum.AutomaticSize.X
-    
-    local WCorner = Instance.new("UICorner")
-    WCorner.CornerRadius = UDim.new(0, 4)
-    WCorner.Parent = WatermarkFrame
-
-    local WStroke = Instance.new("UIStroke")
-    WStroke.Color = Config.Theme.Outline
-    WStroke.Thickness = 1
-    WStroke.Parent = WatermarkFrame
-
-    -- Górna linia akcentująca
-    local AccentLine = Instance.new("Frame")
-    AccentLine.Parent = WatermarkFrame
-    AccentLine.Size = UDim2.new(1, 0, 0, 2)
-    AccentLine.BackgroundColor3 = Config.Theme.Accent
-    AccentLine.BorderSizePixel = 0
-    
-    local ACorner = Instance.new("UICorner")
-    ACorner.CornerRadius = UDim.new(0, 4)
-    ACorner.Parent = AccentLine
-
-    local Content = Instance.new("TextLabel")
-    Content.Parent = WatermarkFrame
-    Content.Size = UDim2.new(1, 0, 1, 0)
-    Content.Position = UDim2.new(0, 0, 0, 1)
-    Content.BackgroundTransparency = 1
-    Content.PaddingLeft = UDim.new(0, 10)
-    Content.PaddingRight = UDim.new(0, 10)
-    Content.Font = Enum.Font.GothamMedium
-    Content.TextColor3 = Config.Theme.Text
-    Content.TextSize = 12
-    Content.AutomaticSize = Enum.AutomaticSize.X
-    
-    local UPadding = Instance.new("UIPadding")
-    UPadding.PaddingLeft = UDim.new(0, 10)
-    UPadding.PaddingRight = UDim.new(0, 10)
-    UPadding.Parent = Content
-
-    -- Silnik aktualizacji danych
-    task.spawn(function()
-        while task.wait(1) do
-            local Time = os.date("%H:%M:%S")
-            local Version = "v1.0.2"
-            local User = game.Players.LocalPlayer.Name
-            Content.Text = "PHANTOM PRIME | " .. User .. " | " .. Version .. " | " .. Time
-        end
-    end)
-
-    -- Możliwość przesuwania (jeśli ktoś chce go mieć w innym miejscu)
-    Utils:Drag(WatermarkFrame)
-end
---========================================================================
--- [30] INTERNAL CONSOLE LOG (System logowania zdarzeń - Styl Terminal)
---========================================================================
-
-function Phantom:CreateConsole(tab)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local ConsoleFrame = Instance.new("Frame")
-    ConsoleFrame.Name = "Console"
-    ConsoleFrame.Parent = tab.Page
-    ConsoleFrame.Size = UDim2.new(1, 0, 0, 200)
-    ConsoleFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    ConsoleFrame.BorderSizePixel = 0
-    
-    local CCorner = Instance.new("UICorner")
-    CCorner.CornerRadius = UDim.new(0, 6)
-    CCorner.Parent = ConsoleFrame
-
-    local CStroke = Instance.new("UIStroke")
-    CStroke.Color = Config.Theme.Outline
-    CStroke.Parent = ConsoleFrame
-
-    local LogScroll = Instance.new("ScrollingFrame")
-    LogScroll.Parent = ConsoleFrame
-    LogScroll.Size = UDim2.new(1, -10, 1, -10)
-    LogScroll.Position = UDim2.new(0, 5, 0, 5)
-    LogScroll.BackgroundTransparency = 1
-    LogScroll.ScrollBarThickness = 2
-    LogScroll.ScrollBarImageColor3 = Config.Theme.Accent
-    LogScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-    
-    local LogList = Instance.new("UIListLayout")
-    LogList.Parent = LogScroll
-    LogList.Padding = UDim.new(0, 2)
-
-    -- Funkcja logowania
-    function Phantom:Log(text, type)
-        local Color = Color3.fromRGB(200, 200, 200)
-        if type == "Success" then Color = Color3.fromRGB(100, 255, 100)
-        elseif type == "Critical" then Color = Color3.fromRGB(255, 100, 100) end
-        
-        local Time = os.date("%H:%M:%S")
-        local LogLabel = Instance.new("TextLabel")
-        LogLabel.Parent = LogScroll
-        LogLabel.Size = UDim2.new(1, 0, 0, 16)
-        LogLabel.BackgroundTransparency = 1
-        LogLabel.Text = string.format("[%s] %s", Time, text)
-        LogLabel.Font = Enum.Font.Code
-        LogLabel.TextColor3 = Color
-        LogLabel.TextSize = 12
-        LogLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-        -- Auto-Scroll Logic
-        LogScroll.CanvasSize = UDim2.new(0, 0, 0, LogList.AbsoluteContentSize.Y)
-        LogScroll.CanvasPosition = Vector2.new(0, LogList.AbsoluteContentSize.Y)
-    end
-
-    return ConsoleFrame
-end
---========================================================================
--- [31] KEYBIND PERSISTENCE (Integracja bindowania z systemem zapisu)
---========================================================================
-
--- Dodaj tę logikę wewnątrz Phantom:CreateKeybind, tam gdzie aktualizujesz tekst
-local function SetBind(key)
-    Keybind.Value = key
-    self.Flags[Flag] = key
-    BindText.Text = key.Name:gsub("MouseButton", "MB"):gsub("KeyCode.", "")
-    
-    -- Wywołanie zapisu przy każdej zmianie (opcjonalne, ale zalecane)
-    self:SaveConfig()
-end
-
--- Zaktualizuj fragment w Phantom:LoadConfig, aby poprawnie obsługiwał Enumy klawiszy
--- (Wstaw to do pętli w LoadConfig z Etapu 17)
-if typeof(value) == "table" and value.Type == "Enum" then
-    local success, keycode = pcall(function() 
-        return Enum.KeyCode[value.Value:gsub("Enum.KeyCode.", "")] 
+-- ====================== BEZPIECZNE POWIADOMIENIA ======================
+function Phantom.SecureNotify(title, text, duration)
+    local StarterGui = getService("StarterGui")
+    if not StarterGui then return end
+
+    local success, result = pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "Phantom",
+            Text = text or "",
+            Duration = duration or 5,
+            Button1 = "OK"
+        })
     end)
     if not success then
-        -- Obsługa przycisków myszy
-        success, keycode = pcall(function() 
-            return Enum.UserInputType[value.Value:gsub("Enum.UserInputType.", "")] 
+        -- Fallback: zwykłe CoreGui (dla niektórych executorów)
+        pcall(function()
+            game:GetService("CoreGui"):SetCore("SendNotification", {
+                Title = title or "Phantom",
+                Text = text or "",
+                Duration = duration or 5
+            })
         end)
     end
-    if success then self.Flags[flag] = keycode end
 end
---========================================================================
--- [32] UI SOUND ENGINE (System efektów dźwiękowych - Styl Premium)
---========================================================================
 
-local SoundService = game:GetService("SoundService")
-local ContentProvider = game:GetService("ContentProvider")
+-- ====================== ŁADOWANIE ASSETÓW Z TIMEOUTEM ======================
+function Phantom.LoadWithTimeout(url, timeout)
+    timeout = timeout or 10
+    local start = tick()
+    local asset
 
-function Phantom:InitSoundEngine()
-    local Sounds = {
-        Click = "rbxassetid://6895079683", -- Krótki, czysty click
-        Hover = "rbxassetid://6839352033", -- Delikatny tick
-        Open = "rbxassetid://6052569501",  -- Rozwijanie menu
-        Notify = "rbxassetid://6518811702" -- Powiadomienie
-    }
-
-    -- Preload (ładowanie do pamięci)
-    for _, id in pairs(Sounds) do
-        ContentProvider:PreloadAsync({Instance.new("Sound", SoundService)})
-    end
-
-    function self:PlaySound(name)
-        if not Sounds[name] then return end
-        
-        local s = Instance.new("Sound")
-        s.SoundId = Sounds[name]
-        s.Volume = 0.5
-        s.Parent = SoundService
-        s:Play()
-        s.Ended:Connect(function() s:Destroy() end)
-    end
-
-    -- Automatyczne bindowanie Hover dla wszystkich przycisków
-    self.ScreenGui.DescendantAdded:Connect(function(desc)
-        if desc:IsA("TextButton") or desc:IsA("ImageButton") then
-            desc.MouseEnter:Connect(function()
-                self:PlaySound("Hover")
-            end)
-            desc.MouseButton1Click:Connect(function()
-                self:PlaySound("Click")
-            end)
-        end
-    end)
-end
---========================================================================
--- [33] CUSTOM CURSOR SYSTEM (Autorski kursor - Styl Neverlose)
---========================================================================
-
-function Phantom:InitCustomCursor()
-    local Config = self.Config
-    local Utils = self.Utils
-    local UIS = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
-
-    local Cursor = Instance.new("ImageLabel")
-    Cursor.Name = "CustomCursor"
-    Cursor.Parent = self.ScreenGui
-    Cursor.Size = UDim2.new(0, 22, 0, 22)
-    Cursor.BackgroundTransparency = 1
-    Cursor.Image = "rbxassetid://6034571993" -- Profesjonalny kursor "Arrow"
-    Cursor.ImageColor3 = Config.Theme.Accent
-    Cursor.ZIndex = 10000 -- Zawsze na samym wierzchu
-    Cursor.Visible = false
-
-    -- Logika śledzenia i widoczności
-    RunService.RenderStepped:Connect(function()
-        local MousePos = UIS:GetMouseLocation()
-        Cursor.Position = UDim2.new(0, MousePos.X, 0, MousePos.Y - 36) -- Offset dla GUI
-
-        -- Kursor widoczny tylko gdy menu jest otwarte
-        if self.ScreenGui:FindFirstChild("Main") then
-            local MainVisible = self.ScreenGui.Main.Visible
-            Cursor.Visible = MainVisible
-            UIS.MouseIconEnabled = not MainVisible
-        end
-    end)
-
-    -- Efekt interakcji (Powiększanie przy kliknięciu)
-    UIS.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and Cursor.Visible then
-            Utils:Tween(Cursor, {Size = UDim2.new(0, 18, 0, 18)}, 0.1)
-        end
-    end)
-
-    UIS.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and Cursor.Visible then
-            Utils:Tween(Cursor, {Size = UDim2.new(0, 22, 0, 22)}, 0.1)
-        end
-    end)
-end
---========================================================================
--- [34] THEME EDITOR V2 (System gotowych motywów kolorystycznych)
---========================================================================
-
-function Phantom:SetTheme(presetName)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Presets = {
-        ["Midnight"] = {
-            Main = Color3.fromRGB(15, 15, 20),
-            Secondary = Color3.fromRGB(20, 20, 25),
-            Accent = Color3.fromRGB(80, 120, 255),
-            Outline = Color3.fromRGB(40, 40, 50)
-        },
-        ["Crimson"] = {
-            Main = Color3.fromRGB(20, 10, 10),
-            Secondary = Color3.fromRGB(30, 15, 15),
-            Accent = Color3.fromRGB(255, 60, 60),
-            Outline = Color3.fromRGB(60, 30, 30)
-        },
-        ["Emerald"] = {
-            Main = Color3.fromRGB(10, 20, 15),
-            Secondary = Color3.fromRGB(15, 30, 20),
-            Accent = Color3.fromRGB(60, 255, 120),
-            Outline = Color3.fromRGB(30, 60, 40)
-        },
-        ["Sakura"] = {
-            Main = Color3.fromRGB(25, 20, 25),
-            Secondary = Color3.fromRGB(35, 25, 35),
-            Accent = Color3.fromRGB(255, 150, 200),
-            Outline = Color3.fromRGB(60, 45, 60)
-        }
-    }
-
-    local selected = Presets[presetName]
-    if not selected then return end
-
-    -- Aktualizacja tabeli Config
-    Config.Theme.Main = selected.Main
-    Config.Theme.Secondary = selected.Secondary
-    Config.Theme.Accent = selected.Accent
-    Config.Theme.Outline = selected.Outline
-
-    -- Silnik masowej aktualizacji wizualnej
-    for _, obj in pairs(self.ScreenGui:GetDescendants()) do
-        if obj:IsA("Frame") or obj:IsA("TextButton") or obj:IsA("ScrollingFrame") then
-            if obj.BackgroundColor3 == Config.Theme.Main then
-                Utils:Tween(obj, {BackgroundColor3 = selected.Main}, 0.5)
-            elseif obj.BackgroundColor3 == Config.Theme.Secondary then
-                Utils:Tween(obj, {BackgroundColor3 = selected.Secondary}, 0.5)
-            end
-        elseif obj:IsA("TextLabel") or obj:IsA("TextBox") then
-            if obj.TextColor3 == Config.Theme.Accent then
-                Utils:Tween(obj, {TextColor3 = selected.Accent}, 0.5)
-            end
-        elseif obj:IsA("UIStroke") then
-            if obj.Color == Config.Theme.Outline then
-                Utils:Tween(obj, {Color = selected.Outline}, 0.5)
-            elseif obj.Color == Config.Theme.Accent then
-                Utils:Tween(obj, {Color = selected.Accent}, 0.5)
-            end
-        end
-    end
-    
-    -- Aktualizacja kursora i powiadomień
-    if self.ScreenGui:FindFirstChild("CustomCursor") then
-        self.ScreenGui.CustomCursor.ImageColor3 = selected.Accent
-    end
-    
-    self:Log("Theme switched to: " .. presetName, "Info")
-    self:SaveConfig()
-end
---========================================================================
--- [35] COLOR PICKER WIDGET (Zaawansowana paleta kolorów HSV)
---========================================================================
-
-function Phantom:CreateColorPicker(tab, options, callback)
-    local Config = self.Config
-    local Utils = self.Utils
-    
-    local Name = options.Name or "Color Picker"
-    local Default = options.Default or Color3.fromRGB(255, 255, 255)
-    local Flag = options.Flag or Name
-    
-    local h, s, v = Color3.toHSV(Default)
-    self.Flags[Flag] = Default
-    
-    local PickerOpened = false
-    task.wait(Config.Waits.RenderElement)
-
-    local MainFrame = Instance.new("Frame")
-    MainFrame.Name = Name
-    MainFrame.Parent = tab.Page
-    MainFrame.Size = UDim2.new(1, 0, 0, 40)
-    MainFrame.BackgroundColor3 = Config.Theme.Secondary
-    MainFrame.ClipsDescendants = true
-    
-    local MCorner = Instance.new("UICorner")
-    MCorner.CornerRadius = UDim.new(0, 8)
-    MCorner.Parent = MainFrame
-
-    local Title = Instance.new("TextLabel")
-    Title.Parent = MainFrame
-    Title.Position = UDim2.new(0, 15, 0, 0)
-    Title.Size = UDim2.new(1, -60, 0, 40)
-    Title.Text = Name
-    Title.Font = Enum.Font.GothamSemibold
-    Title.TextColor3 = Config.Theme.Text
-    Title.TextSize = 13
-    Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.BackgroundTransparency = 1
-
-    local Preview = Instance.new("Frame")
-    Preview.Parent = MainFrame
-    Preview.Position = UDim2.new(1, -45, 0, 10)
-    Preview.Size = UDim2.new(0, 30, 0, 20)
-    Preview.BackgroundColor3 = Default
-    
-    local PCorner = Instance.new("UICorner")
-    PCorner.CornerRadius = UDim.new(0, 4)
-    PCorner.Parent = Preview
-
-    local PButton = Instance.new("TextButton")
-    PButton.Size = UDim2.new(1, 0, 1, 0)
-    PButton.BackgroundTransparency = 1
-    PButton.Text = ""
-    PButton.Parent = Preview
-
-    -- Panel Wyboru (Rozwijany)
-    local Canvas = Instance.new("ImageLabel") -- Saturation/Value
-    Canvas.Name = "SV_Canvas"
-    Canvas.Parent = MainFrame
-    Canvas.Position = UDim2.new(0, 15, 0, 50)
-    Canvas.Size = UDim2.new(0, 150, 0, 150)
-    Canvas.Image = "rbxassetid://4155801252"
-    Canvas.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-
-    local HueSlider = Instance.new("ImageButton")
-    HueSlider.Name = "HueSlider"
-    HueSlider.Parent = MainFrame
-    HueSlider.Position = UDim2.new(0, 175, 0, 50)
-    HueSlider.Size = UDim2.new(0, 20, 0, 150)
-    HueSlider.Image = "rbxassetid://3641079629"
-
-    -- Logika Update
-    local function Update()
-        local FinalColor = Color3.fromHSV(h, s, v)
-        Canvas.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-        Preview.BackgroundColor3 = FinalColor
-        self.Flags[Flag] = FinalColor
-        callback(FinalColor)
-    end
-
-    -- Interaction Logic (Uproszczona dla stabilności)
-    HueSlider.MouseButton1Down:Connect(function()
-        local MoveConn
-        MoveConn = game:GetService("RunService").RenderStepped:Connect(function()
-            local MousePos = game:GetService("UserInputService"):GetMouseLocation()
-            local RelativeY = math.clamp((MousePos.Y - HueSlider.AbsolutePosition.Y) / HueSlider.AbsoluteSize.Y, 0, 1)
-            h = 1 - RelativeY
-            Update()
+    repeat
+        local success, result = pcall(function()
+            return game:HttpGet(url)
         end)
-        game:GetService("UserInputService").InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then MoveConn:Disconnect() end
-        end)
-    end)
+        if success then
+            asset = result
+            break
+        end
+        wait(0.1)
+    until tick() - start > timeout
 
-    PButton.MouseButton1Click:Connect(function()
-        PickerOpened = not PickerOpened
-        Utils:Tween(MainFrame, {Size = PickerOpened and UDim2.new(1, 0, 0, 220) or UDim2.new(1, 0, 0, 40)}, 0.3)
-    end)
-
-    return MainFrame
+    return asset
 end
---========================================================================
--- [36] ESP ENGINE FOUNDATION (Drawing API & Projection)
---========================================================================
 
-local Camera = workspace.CurrentCamera
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- ====================== MOTYW KOLORYSTYCZNY (PASUJĄCY DO IKONY DUCHA) ======================
+Phantom.Theme = {
+    -- Tła (głęboka czerń z szarym gradientem – jak góra ducha)
+    Background = Color3.fromRGB(18, 18, 22),
+    BackgroundGradientTop = Color3.fromRGB(30, 30, 35),  -- jaśniejszy szary na górę
+    Surface = Color3.fromRGB(25, 25, 30),
+    SurfaceLight = Color3.fromRGB(35, 35, 40),
 
-function Phantom:CreateESP(TargetPlayer)
-    local Box = Drawing.new("Square")
-    Box.Visible = false
-    Box.Color = self.Config.Theme.Accent
-    Box.Thickness = 1
-    Box.Transparency = 1
-    Box.Filled = false
+    -- Akcent (neonowy niebieski – oczy ducha)
+    Accent = Color3.fromRGB(0, 191, 255),      -- #00BFFF
+    AccentDark = Color3.fromRGB(0, 140, 200),
+    AccentGlow = Color3.fromRGB(80, 210, 255),  -- poświata
 
-    local function Update()
-        local Connection
-        Connection = game:GetService("RunService").RenderStepped:Connect(function()
-            if TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") and TargetPlayer ~= LocalPlayer then
-                local RootPart = TargetPlayer.Character.HumanoidRootPart
-                local Position, OnScreen = Camera:WorldToViewportPoint(RootPart.Position)
+    -- Tekst (czysty, czytelny)
+    TextPrimary = Color3.fromRGB(240, 240, 245),
+    TextSecondary = Color3.fromRGB(180, 180, 190),
+    TextDisabled = Color3.fromRGB(100, 100, 110),
 
-                if OnScreen and self.Flags["ESP_Enabled"] then
-                    -- Obliczanie rozmiaru ramki na podstawie dystansu
-                    local SizeX = 2000 / Position.Z
-                    local SizeY = 3000 / Position.Z
-                    
-                    Box.Visible = true
-                    Box.Size = Vector2.new(SizeX, SizeY)
-                    Box.Position = Vector2.new(Position.X - SizeX / 2, Position.Y - SizeY / 2)
-                    Box.Color = self.Flags["ESP_Color"] or self.Config.Theme.Accent
-                else
-                    Box.Visible = false
-                end
-            else
-                Box.Visible = false
-                if not TargetPlayer.Parent then
-                    Box:Remove()
-                    Connection:Disconnect()
-                end
-            end
-        end)
+    -- Kontury i separatory
+    Border = Color3.fromRGB(45, 45, 50),
+    Divider = Color3.fromRGB(35, 35, 40),
+
+    -- Cień (do UIStroke lub efektów)
+    Shadow = Color3.fromRGB(0, 0, 0),
+
+    -- Półprzezroczystości (do overlayów, tła okien modalnych)
+    Overlay = Color3.fromRGB(0, 0, 0):Lerp(Color3.new(1,1,1), 0.4)
+}
+
+-- ====================== ZABEZPIECZENIE PRZED REINICJACJĄ ======================
+if _G.PhantomUI then
+    return _G.PhantomUI  -- Zwróć już załadowaną instancję
+end
+
+-- ====================== FINALIZACJA ======================
+Phantom.Loaded = true
+_G.PhantomUI = Phantom
+
+-- Placeholder pod przyszłe komponenty (części 2+)
+Phantom.Windows = {}
+Phantom.Notifications = {}
+Phantom.Connections = {}
+
+print("[Phantom] ✅ Część 1 załadowana. Środowisko: " .. Phantom.Environment)
+return Phantom
+--[[
+    Część 2/40: System Assetów (ikony, tekstury, gradienty)
+    - LoadImage(url) → ładuje obrazek jako decal i zapamiętuje
+    - GetImage(id)   → zwraca wcześniej załadowany obrazek
+    - SetLibraryIcon(id) → ustawia główną ikonę ducha (wczytaną wcześniej)
+    - Będzie używane przy tworzeniu okien, przycisków, avatarów itp.
+]]
+
+-- ====================== CACHE OBRAZÓW ======================
+Phantom.ImageCache = {}
+Phantom.LibraryIcon = nil -- ID w cache'u ustawiony przez SetLibraryIcon
+
+-- ====================== BEZPIECZNE POBIERANIE OBRAZU ======================
+function Phantom.LoadImage(url: string): string?
+    -- Sprawdź czy już mamy ten obraz (kluczem jest url)
+    if Phantom.ImageCache[url] then
+        return url
     end
-    
-    coroutine.wrap(Update)()
+
+    local success, imageData = pcall(function()
+        return game:HttpGet(url)
+    end)
+
+    if not success or not imageData then
+        if Phantom.SecureMode then
+            warn("[Phantom] Nie udało się pobrać obrazu: " .. url)
+        end
+        return nil
+    end
+
+    -- Tworzymy tymczasowy obiekt Image, żeby uzyskać decal ID
+    local tempImage = Instance.new("ImageLabel")
+    tempImage.Visible = false
+    tempImage.Parent = game:GetService("CoreGui") or game:GetService("StarterGui")
+
+    local setSuccess = pcall(function()
+        tempImage.Image = imageData   -- dla większości executorów to powinno zadziałać
+    end)
+
+    if not setSuccess then
+        tempImage:Destroy()
+        warn("[Phantom] Executor nie obsługuje bezpośredniego przypisania Image z danych.")
+        return nil
+    end
+
+    -- Czekamy aż image się załaduje (max 2 sekundy)
+    local start = tick()
+    repeat wait(0.1) until tempImage.IsLoaded or tick() - start > 2
+
+    if not tempImage.IsLoaded then
+        tempImage:Destroy()
+        if Phantom.SecureMode then
+            warn("[Phantom] Obraz nie załadował się: " .. url)
+        end
+        return nil
+    end
+
+    -- Pobieramy identyfikator decala (rządzi "rbxassetid://...")
+    local assetId = tempImage.Image
+    tempImage:Destroy()
+
+    -- Cache'ujemy
+    Phantom.ImageCache[url] = assetId
+    return assetId
 end
 
--- Inicjalizacja dla wszystkich graczy
-for _, player in pairs(Players:GetPlayers()) do
-    Phantom:CreateESP(player)
+-- ====================== POBIERANIE Z CACHE'U ======================
+function Phantom.GetImage(urlOrId: string): string?
+    if Phantom.ImageCache[urlOrId] then
+        return Phantom.ImageCache[urlOrId]
+    end
+    -- Jeśli to już jakiś asset ID (rbxassetid://), zwróć
+    if urlOrId:sub(1,13) == "rbxassetid://" then
+        return urlOrId
+    end
+    return nil
 end
-Players.PlayerAdded:Connect(function(player)
-    Phantom:CreateESP(player)
-end)
---========================================================================
--- [37] FOV CIRCLE (Wizualizacja zasięgu Aimbota - Drawing API)
---========================================================================
 
-function Phantom:InitFOV()
-    local Config = self.Config
-    local Camera = workspace.CurrentCamera
-    
-    local FOVCircle = Drawing.new("Circle")
-    FOVCircle.Visible = false
-    FOVCircle.Outline = true
-    FOVCircle.OutlineColor = Color3.fromRGB(0, 0, 0)
-    FOVCircle.Thickness = 1
-    FOVCircle.NumSides = 64 -- Im więcej, tym gładszy okrąg
-    FOVCircle.Transparency = 1
-    FOVCircle.Filled = false
-    
-    -- Logika odświeżania pozycji i parametrów
-    game:GetService("RunService").RenderStepped:Connect(function()
-        if self.Flags["Aimbot_ShowFOV"] then
-            local MousePos = game:GetService("UserInputService"):GetMouseLocation()
-            
-            FOVCircle.Visible = true
-            FOVCircle.Radius = self.Flags["Aimbot_FOV_Radius"] or 100
-            FOVCircle.Position = Vector2.new(MousePos.X, MousePos.Y)
-            FOVCircle.Color = self.Flags["Aimbot_FOV_Color"] or Config.Theme.Accent
+-- ====================== USTAWIANIE IKONY BIBLIOTEKI ======================
+function Phantom.SetLibraryIcon(imageUrl: string)
+    local id = Phantom.LoadImage(imageUrl)
+    if id then
+        Phantom.LibraryIcon = id
+        print("[Phantom] ✅ Ikona biblioteki załadowana.")
+    else
+        warn("[Phantom] ⚠️ Nie udało się ustawić ikony – upewnij się, że URL jest poprawny.")
+    end
+end
+
+-- ====================== PLACEHOLDER: IKONA DOMYŚLNA ======================
+-- Jeśli nie ustawisz własnej, użyje "duszka" z generycznego placeholdera
+-- (możesz to zastąpić swoim linkiem później)
+if not Phantom.LibraryIcon then
+    -- Domyślny placeholder (pusty obrazek, aby nie crashować)
+    Phantom.DefaultIcon = "rbxassetid://0"  -- pusty asset
+end
+
+-- ====================== PRZYKŁAD UŻYCIA (do usunięcia w release) ======================
+-- Aby ustawić ikonę ducha (podmień URL na swój):
+-- Phantom.SetLibraryIcon("https://link.do.twojego/ducha.png")
+--[[
+    Część 3/40: System konfiguracji i zapisu (Config Manager)
+    - SaveConfig(name, data) → zapisuje dane do pliku .json
+    - LoadConfig(name)        → wczytuje zapisane dane
+    - GetConfigs()            → lista dostępnych konfigów
+    - OverrideSetting(path, value) → nadpisuje konkretną ścieżkę w storedData
+    - GetSetting(path)        → odczytuje wartość z storedData
+    - Obsługuje szyfrowanie (jeśli executor daje syn.crypt)
+    - Automatycznie tworzy folder Phantom/Configs/
+]]
+
+-- ====================== WYKRYWANIE DOSTĘPNYCH FUNKCJI EXECUTORA ======================
+local hasWriteFile = pcall(function() return writefile end)
+local hasReadFile = pcall(function() return readfile end)
+local hasMakeFolder = pcall(function() return makefolder end)
+local hasIsFile = pcall(function() return isfile end)
+local hasDelFile = pcall(function() return delfile end)
+local hasCrypt = pcall(function() return (syn and syn.crypt) end) and syn and syn.crypt
+
+-- Fallbacki dla braku funkcji (wtedy użyjemy tylko przechowywania w pamięci)
+if not hasWriteFile or not hasReadFile or not hasMakeFolder then
+    warn("[Phantom] ⚠️ Executor nie udostępnia funkcji plikowych – config działa tylko w sesji.")
+end
+
+-- ====================== INTERFEJS CONFIG MANAGERA ======================
+Phantom.Config = {}
+Phantom.Config.FolderName = "Phantom/Configs"
+Phantom.Config.Encrypt = hasCrypt  -- automatycznie szyfruj, jeśli dostępne
+
+-- ====================== TWORZENIE FOLDERU ======================
+if hasMakeFolder then
+    makefolder(Phantom.Config.FolderName)
+end
+
+-- ====================== POMOCNICZA FUNKCJA: SZYFROWANIE ======================
+local function encrypt(data)
+    if Phantom.Config.Encrypt and hasCrypt then
+        local success, encrypted = pcall(syn.crypt.encrypt, data, "PhantomKey")
+        if success then return encrypted end
+    end
+    return data  -- brak szyfrowania lub błąd
+end
+
+local function decrypt(data)
+    if Phantom.Config.Encrypt and hasCrypt then
+        local success, decrypted = pcall(syn.crypt.decrypt, data, "PhantomKey")
+        if success then return decrypted end
+    end
+    return data  -- brak szyfrowania lub dane niezaszyfrowane
+end
+
+-- ====================== ZAPISYWANIE KONFIGURACJI ======================
+function Phantom.Config.SaveConfig(name, data)
+    if not hasWriteFile then
+        warn("[Phantom] Nie można zapisać – brak writefile.")
+        return false
+    end
+
+    local success, json
+    if pcall(function() return game:GetService("HttpService"):JSONEncode(data) end) then
+        json = game:GetService("HttpService"):JSONEncode(data)
+    else
+        -- Fallback: ręczna serializacja (ograniczona, ale działa dla prostych tabel)
+        json = "return " .. tostring(data)
+    end
+
+    local filePath = Phantom.Config.FolderName .. "/" .. name .. ".json"
+    local content = encrypt(json)
+
+    local writeSuccess, err = pcall(function()
+        writefile(filePath, content)
+    end)
+
+    if not writeSuccess then
+        warn("[Phantom] Błąd zapisu config '" .. name .. "': " .. tostring(err))
+        return false
+    end
+    return true
+end
+
+-- ====================== WCZYTYWANIE KONFIGURACJI ======================
+function Phantom.Config.LoadConfig(name)
+    if not hasReadFile then
+        warn("[Phantom] Nie można wczytać – brak readfile.")
+        return nil
+    end
+
+    local filePath = Phantom.Config.FolderName .. "/" .. name .. ".json"
+    local isFile = pcall(isfile, filePath)
+    if not isFile then return nil end
+
+    local success, content = pcall(readfile, filePath)
+    if not success then
+        warn("[Phantom] Nie udało się odczytać pliku: " .. filePath)
+        return nil
+    end
+
+    local decrypted = decrypt(content)
+
+    -- Parsowanie JSON
+    local data
+    if pcall(function() return game:GetService("HttpService"):JSONDecode(decrypted) end) then
+        data = game:GetService("HttpService"):JSONDecode(decrypted)
+    else
+        -- Fallback: ręczne parsowanie (jeśli wcześniej użyto tostring)
+        local func, err = loadstring(decrypted)
+        if func then
+            data = func()
         else
-            FOVCircle.Visible = false
+            warn("[Phantom] Nieprawidłowy format config '" .. name .. "'.")
+            return nil
         end
-    end)
+    end
+    return data
 end
---========================================================================
--- [38] AIMBOT LOGIC (Smoothing & Target Acquisition)
---========================================================================
 
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+-- ====================== LISTOWANIE WSZYSTKICH KONFIGÓW ======================
+function Phantom.Config.GetConfigs()
+    local configs = {}
+    if not hasIsFile then return configs end
 
-function Phantom:GetClosestPlayer()
-    local Closest = nil
-    local MaxDist = self.Flags["Aimbot_FOV_Radius"] or 100
-    local MousePos = UserInputService:GetMouseLocation()
-
-    for _, v in pairs(Players:GetPlayers()) do
-        if v ~= LocalPlayer and v.Character and v.Character:FindFirstChild("Humanoid") and v.Character.Humanoid.Health > 0 then
-            -- Wybór części ciała (domyślnie Head)
-            local TargetPart = v.Character:FindFirstChild(self.Flags["Aimbot_TargetPart"] or "Head")
-            if TargetPart then
-                local ScreenPos, OnScreen = Camera:WorldToViewportPoint(TargetPart.Position)
-                if OnScreen then
-                    local Distance = (Vector2.new(ScreenPos.X, ScreenPos.Y) - MousePos).Magnitude
-                    if Distance < MaxDist then
-                        MaxDist = Distance
-                        Closest = v
+    local folderPath = Phantom.Config.FolderName
+    -- Próbujemy listować pliki (executory często nie mają tej funkcji, więc opcjonalnie)
+    local listFiles = pcall(function()
+        local files = listfiles(folderPath)
+        if files then
+            for _, file in ipairs(files) do
+                if file:sub(-5) == ".json" then
+                    local name = file:match("([^/]+)%.json$")
+                    if name then
+                        table.insert(configs, name)
                     end
                 end
             end
         end
-    end
-    return Closest
+    end)
+    return configs
 end
 
-RunService.RenderStepped:Connect(function()
-    if self.Flags["Aimbot_Enabled"] and UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
-        local Target = Phantom:GetClosestPlayer()
-        if Target and Target.Character then
-            local TargetPart = Target.Character[self.Flags["Aimbot_TargetPart"] or "Head"]
-            local Smoothness = self.Flags["Aimbot_Smoothing"] or 1 -- 1 = brak smoothingu
-            
-            -- Magia Smoothingu
-            local LookAt = CFrame.new(Camera.CFrame.Position, TargetPart.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(LookAt, 1 / Smoothness)
+-- ====================== ZARZĄDZANIE ŚCIEŻKAMI USTAWIEŃ ======================
+-- Stored data dla bieżącej sesji (jako podstawa do OverrideSetting)
+Phantom.Config.StoredData = {}
+
+function Phantom.Config.SetStoredData(data)
+    Phantom.Config.StoredData = data or {}
+end
+
+function Phantom.Config.OverrideSetting(path, value)
+    -- path np. "Main.Toggle1" lub "MyWindow.Slider"
+    local keys = {}
+    for part in path:gmatch("[^%.]+") do
+        table.insert(keys, part)
+    end
+
+    local current = Phantom.Config.StoredData
+    for i = 1, #keys - 1 do
+        local k = keys[i]
+        if type(current[k]) ~= "table" then
+            current[k] = {}
         end
+        current = current[k]
+    end
+    current[keys[#keys]] = value
+end
+
+function Phantom.Config.GetSetting(path)
+    local keys = {}
+    for part in path:gmatch("[^%.]+") do
+        table.insert(keys, part)
+    end
+
+    local current = Phantom.Config.StoredData
+    for _, k in ipairs(keys) do
+        if type(current) == "table" and current[k] ~= nil then
+            current = current[k]
+        else
+            return nil
+        end
+    end
+    return current
+end
+
+-- ====================== INICJALIZACJA GLOBALNEGO CONFIGU ======================
+-- Ładujemy domyślną konfigurację "default" jeśli istnieje
+local defaultConfig = Phantom.Config.LoadConfig("default")
+if defaultConfig then
+    Phantom.Config.SetStoredData(defaultConfig)
+end
+
+print("[Phantom] ✅ Część 3 załadowana (Config Manager)")
+local Phantom = loadstring(game:HttpGet("TU_TWÓJ_RAW_URL"))()
+
+-- Opcjonalnie ustaw ikonę (jeśli masz URL do ducha):
+-- Phantom:SetLibraryIcon("https://link.do.ikony.png")
+
+local Window = Phantom:CreateWindow({
+    Name = "Phantom Hub",
+    Size = UDim2.new(0, 600, 0, 400)
+})
+local Phantom = loadstring(game:HttpGet("..."))()
+
+local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
+
+local MainTab = Window:AddTab("Main")
+local VisualsTab = Window:AddTab("Visuals")
+local ConfigTab = Window:AddTab("Config")
+
+-- na razie tab są puste, ale zaraz część 6 da Ci AddButton itd.
+local Phantom = loadstring(game:HttpGet("TWÓJ_RAW_URL"))()
+
+local Window = Phantom:CreateWindow({Name = "Phantom Hub"})
+
+local MainTab = Window:AddTab("Main")
+
+MainTab:AddLabel("Witaj w Phantom UI!")
+MainTab:AddLabel("To jest najlepsza biblioteka.")
+
+MainTab:AddButton("Kliknij mnie", function()
+    print("Przycisk działa!")
+end)
+
+MainTab:AddToggle({
+    Text = "Auto Farm",
+    Default = false
+}, function(state)
+    if state then
+        print("Auto Farm: WŁĄCZONY")
+    else
+        print("Auto Farm: WYŁĄCZONY")
     end
 end)
---========================================================================
--- [39] TRACER ENGINE (Snaplines - System wizualnego namierzania)
---========================================================================
-
-function Phantom:CreateTracer(TargetPlayer)
-    local Line = Drawing.new("Line")
-    Line.Visible = false
-    Line.Transparency = 0.8
-    Line.Thickness = 1
-    Line.Color = self.Config.Theme.Accent
-
-    local function Update()
-        local Connection
-        Connection = game:GetService("RunService").RenderStepped:Connect(function()
-            if TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") and TargetPlayer ~= LocalPlayer then
-                local RootPart = TargetPlayer.Character.HumanoidRootPart
-                local Position, OnScreen = Camera:WorldToViewportPoint(RootPart.Position)
-
-                if OnScreen and self.Flags["ESP_Tracers"] then
-                    local ScreenSize = Camera.ViewportSize
-                    local Origin = self.Flags["Tracer_Origin"] or "Bottom"
-                    
-                    -- Wybór punktu startowego
-                    if Origin == "Bottom" then
-                        Line.From = Vector2.new(ScreenSize.X / 2, ScreenSize.Y)
-                    elseif Origin == "Center" then
-                        Line.From = Vector2.new(ScreenSize.X / 2, ScreenSize.Y / 2)
-                    else -- Mouse
-                        Line.From = game:GetService("UserInputService"):GetMouseLocation()
-                    end
-
-                    Line.To = Vector2.new(Position.X, Position.Y)
-                    Line.Visible = true
-                    Line.Color = self.Flags["ESP_Color"] or self.Config.Theme.Accent
-                else
-                    Line.Visible = false
-                end
-            else
-                Line.Visible = false
-                if not TargetPlayer.Parent then
-                    Line:Remove()
-                    Connection:Disconnect()
-                end
-            end
-        end)
-    end
-    
-    coroutine.wrap(Update)()
-end
-
--- Pamiętaj o wywołaniu tej funkcji w pętli PlayerAdded, tak jak przy ESP Box!
---========================================================================
--- [40] CHAMS SYSTEM (Model Highlights - Wizualizacja 3D przez ściany)
---========================================================================
-
-function Phantom:CreateChams(TargetPlayer)
-    local function Apply(character)
-        if not character then return end
-        
-        -- Usuwamy stary highlight jeśli istnieje
-        local existing = character:FindFirstChild("PhantomChams")
-        if existing then existing:Destroy() end
-
-        local Highlight = Instance.new("Highlight")
-        Highlight.Name = "PhantomChams"
-        Highlight.Parent = character
-        Highlight.Enabled = self.Flags["ESP_Chams"] or false
-        Highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop -- Klucz do widzenia przez ściany
-        Highlight.FillColor = self.Flags["Chams_FillColor"] or self.Config.Theme.Accent
-        Highlight.OutlineColor = self.Flags["Chams_OutlineColor"] or Color3.fromRGB(255, 255, 255)
-        Highlight.FillTransparency = 0.5
-        Highlight.OutlineTransparency = 0
-
-        -- Pętla aktualizująca stan
-        task.spawn(function()
-            while character.Parent and Highlight.Parent do
-                Highlight.Enabled = self.Flags["ESP_Chams"] or false
-                Highlight.FillColor = self.Flags["Chams_FillColor"] or self.Config.Theme.Accent
-                task.wait(0.5) -- Niskie odświeżanie wystarczy dla statycznych kolorów
-            end
-        end)
-    end
-
-    -- Obsługa respawnu
-    TargetPlayer.CharacterAdded:Connect(Apply)
-    if TargetPlayer.Character then Apply(TargetPlayer.Character) end
-end
-
--- Zainicjuj dla obecnych graczy
-for _, v in pairs(game.Players:GetPlayers()) do
-    if v ~= game.Players.LocalPlayer then Phantom:CreateChams(v) end
-end
---========================================================================
--- [41] SKELETON ESP (Renderowanie szkieletu gracza w 2D)
---========================================================================
-
-function Phantom:CreateSkeleton(TargetPlayer)
-    local Bones = {
-        {"Head", "UpperTorso"}, {"UpperTorso", "LowerTorso"},
-        {"UpperTorso", "LeftUpperArm"}, {"LeftUpperArm", "LeftLowerArm"}, {"LeftLowerArm", "LeftHand"},
-        {"UpperTorso", "RightUpperArm"}, {"RightUpperArm", "RightLowerArm"}, {"RightLowerArm", "RightHand"},
-        {"LowerTorso", "LeftUpperLeg"}, {"LeftUpperLeg", "LeftLowerLeg"}, {"LeftLowerLeg", "LeftFoot"},
-        {"LowerTorso", "RightUpperLeg"}, {"RightUpperLeg", "RightLowerLeg"}, {"RightLowerLeg", "RightFoot"}
-    }
-
-    local Drawings = {}
-    for i = 1, #Bones do
-        local Line = Drawing.new("Line")
-        Line.Thickness = 1.5
-        Line.Transparency = 1
-        Line.Color = self.Config.Theme.Accent
-        Line.Visible = false
-        table.insert(Drawings, Line)
-    end
-
-    local function Update()
-        local Connection
-        Connection = game:GetService("RunService").RenderStepped:Connect(function()
-            if TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") and self.Flags["ESP_Skeleton"] then
-                local Char = TargetPlayer.Character
-                for i, BonePair in pairs(Bones) do
-                    local Part1, Part2 = Char:FindFirstChild(BonePair[1]), Char:FindFirstChild(BonePair[2])
-                    local Line = Drawings[i]
-
-                    if Part1 and Part2 then
-                        local Pos1, OnScreen1 = Camera:WorldToViewportPoint(Part1.Position)
-                        local Pos2, OnScreen2 = Camera:WorldToViewportPoint(Part2.Position)
-
-                        if OnScreen1 and OnScreen2 then
-                            Line.Visible = true
-                            Line.From = Vector2.new(Pos1.X, Pos1.Y)
-                            Line.To = Vector2.new(Pos2.X, Pos2.Y)
-                            Line.Color = self.Flags["ESP_Color"] or self.Config.Theme.Accent
-                        else
-                            Line.Visible = false
-                        end
-                    else
-                        Line.Visible = false
-                    end
-                end
-            else
-                for _, Line in pairs(Drawings) do Line.Visible = false end
-                if not TargetPlayer.Parent then
-                    for _, Line in pairs(Drawings) do Line:Remove() end
-                    Connection:Disconnect()
-                end
-            end
-        end)
-    end
-    coroutine.wrap(Update)()
-end
---========================================================================
--- [42] CROSSHAIR DESIGNER (System autorskiego celownika)
---========================================================================
-
-function Phantom:InitCrosshair()
-    local Config = self.Config
-    local Camera = workspace.CurrentCamera
-    
-    local Crosshair = {
-        Lines = {},
-        Dot = Drawing.new("Circle")
-    }
-
-    -- Inicjalizacja 4 linii
-    for i = 1, 4 do
-        local Line = Drawing.new("Line")
-        Line.Thickness = 1
-        Line.Transparency = 1
-        Line.Visible = false
-        table.insert(Crosshair.Lines, Line)
-    end
-
-    -- Inicjalizacja kropki
-    Crosshair.Dot.Filled = true
-    Crosshair.Dot.Radius = 2
-    Crosshair.Dot.Visible = false
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        local Enabled = self.Flags["Crosshair_Enabled"]
-        local Center = Camera.ViewportSize / 2
-        
-        -- Pobieranie parametrów z Flags
-        local Size = self.Flags["Crosshair_Size"] or 10
-        local Gap = self.Flags["Crosshair_Gap"] or 5
-        local Thickness = self.Flags["Crosshair_Thickness"] or 1
-        local ShowDot = self.Flags["Crosshair_Dot"]
-        local Color = self.Flags["Crosshair_Color"] or Config.Theme.Accent
-
-        Crosshair.Dot.Visible = Enabled and ShowDot
-        Crosshair.Dot.Position = Center
-        Crosshair.Dot.Color = Color
-
-        for i, Line in pairs(Crosshair.Lines) do
-            Line.Visible = Enabled
-            Line.Thickness = Thickness
-            Line.Color = Color
-            
-            if i == 1 then -- Góra
-                Line.From = Center - Vector2.new(0, Gap)
-                Line.To = Center - Vector2.new(0, Gap + Size)
-            elseif i == 2 then -- Dół
-                Line.From = Center + Vector2.new(0, Gap)
-                Line.To = Center + Vector2.new(0, Gap + Size)
-            elseif i == 3 then -- Lewo
-                Line.From = Center - Vector2.new(Gap, 0)
-                Line.To = Center - Vector2.new(Gap + Size, 0)
-            elseif i == 4 then -- Prawo
-                Line.From = Center + Vector2.new(Gap, 0)
-                Line.To = Center + Vector2.new(Gap + Size, 0)
-            end
-        end
-    end)
-end
---========================================================================
--- [42] CROSSHAIR DESIGNER (System autorskiego celownika)
---========================================================================
-
-function Phantom:InitCrosshair()
-    local Config = self.Config
-    local Camera = workspace.CurrentCamera
-    
-    local Crosshair = {
-        Lines = {},
-        Dot = Drawing.new("Circle")
-    }
-
-    -- Inicjalizacja 4 linii
-    for i = 1, 4 do
-        local Line = Drawing.new("Line")
-        Line.Thickness = 1
-        Line.Transparency = 1
-        Line.Visible = false
-        table.insert(Crosshair.Lines, Line)
-    end
-
-    -- Inicjalizacja kropki
-    Crosshair.Dot.Filled = true
-    Crosshair.Dot.Radius = 2
-    Crosshair.Dot.Visible = false
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        local Enabled = self.Flags["Crosshair_Enabled"]
-        local Center = Camera.ViewportSize / 2
-        
-        -- Pobieranie parametrów z Flags
-        local Size = self.Flags["Crosshair_Size"] or 10
-        local Gap = self.Flags["Crosshair_Gap"] or 5
-        local Thickness = self.Flags["Crosshair_Thickness"] or 1
-        local ShowDot = self.Flags["Crosshair_Dot"]
-        local Color = self.Flags["Crosshair_Color"] or Config.Theme.Accent
-
-        Crosshair.Dot.Visible = Enabled and ShowDot
-        Crosshair.Dot.Position = Center
-        Crosshair.Dot.Color = Color
-
-        for i, Line in pairs(Crosshair.Lines) do
-            Line.Visible = Enabled
-            Line.Thickness = Thickness
-            Line.Color = Color
-            
-            if i == 1 then -- Góra
-                Line.From = Center - Vector2.new(0, Gap)
-                Line.To = Center - Vector2.new(0, Gap + Size)
-            elseif i == 2 then -- Dół
-                Line.From = Center + Vector2.new(0, Gap)
-                Line.To = Center + Vector2.new(0, Gap + Size)
-            elseif i == 3 then -- Lewo
-                Line.From = Center - Vector2.new(Gap, 0)
-                Line.To = Center - Vector2.new(Gap + Size, 0)
-            elseif i == 4 then -- Prawo
-                Line.From = Center + Vector2.new(Gap, 0)
-                Line.To = Center + Vector2.new(Gap + Size, 0)
-            end
-        end
-    end)
-end
---========================================================================
--- [43] HIT MARKER & SOUND SYSTEM (Feedback trafień - Styl CoD)
---========================================================================
-
-function Phantom:SpawnHitMarker()
-    local Camera = workspace.CurrentCamera
-    local Center = Camera.ViewportSize / 2
-    local Lines = {}
-    local Duration = 0.4 -- Jak długo widać hitmarker
-    
-    for i = 1, 4 do
-        local L = Drawing.new("Line")
-        L.Thickness = 1.5
-        L.Color = Color3.fromRGB(255, 255, 255)
-        L.Transparency = 1
-        L.Visible = true
-        table.insert(Lines, L)
-    end
-
-    local Size = 6
-    local Gap = 4
-
-    Lines[1].From = Center + Vector2.new(Gap, Gap)
-    Lines[1].To = Center + Vector2.new(Gap + Size, Gap + Size)
-
-    Lines[2].From = Center + Vector2.new(-Gap, Gap)
-    Lines[2].To = Center + Vector2.new(-Gap - Size, Gap + Size)
-
-    Lines[3].From = Center + Vector2.new(Gap, -Gap)
-    Lines[3].To = Center + Vector2.new(Gap + Size, -Gap - Size)
-
-    Lines[4].From = Center + Vector2.new(-Gap, -Gap)
-    Lines[4].To = Center + Vector2.new(-Gap - Size, -Gap - Size)
-
-    -- Animacja znikania
-    task.spawn(function()
-        for i = 1, 10 do
-            local trans = 1 - (i/10)
-            for _, L in pairs(Lines) do L.Transparency = trans end
-            task.wait(Duration/10)
-        end
-        for _, L in pairs(Lines) do L:Remove() end
-    end)
-end
-
-function Phantom:InitHitSystem()
-    local Players = game:GetService("Players")
-    
-    local function Monitor(plr)
-        if plr == Players.LocalPlayer then return end
-        plr.CharacterAdded:Connect(function(char)
-            local hum = char:WaitForChild("Humanoid")
-            local lastHealth = hum.Health
-            
-            hum.HealthChanged:Connect(function(health)
-                if health < lastHealth and self.Flags["HitMarker_Enabled"] then
-                    self:SpawnHitMarker()
-                    if self.Flags["HitSound_Enabled"] then
-                        self:PlaySound("Notify") -- Lub dedykowany hit-sound
-                    end
-                end
-                lastHealth = health
-            end)
-        end)
-    end
-
-    for _, v in pairs(Players:GetPlayers()) do Monitor(v) end
-    Players.PlayerAdded:Connect(Monitor)
-end
---========================================================================
--- [45] SPINBOT ENGINE (System Anti-Aim)
---========================================================================
-
-function Phantom:InitSpinbot()
-    local RunService = game:GetService("RunService")
-    local LP = game.Players.LocalPlayer
-    
-    RunService.RenderStepped:Connect(function()
-        if self.Flags["Spinbot_Enabled"] and LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") then
-            local Root = LP.Character.HumanoidRootPart
-            local Speed = self.Flags["Spinbot_Speed"] or 50
-            
-            -- Rotacja bez wpływu na fizykę ruchu
-            Root.CFrame = Root.CFrame * CFrame.Angles(0, math.rad(Speed), 0)
-        end
-    end)
-end
