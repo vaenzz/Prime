@@ -1,105 +1,59 @@
 --[[
-    PHANTOM UI LIBRARY | PART 1: CORE ENGINE
-    Developed for: Professional & High-Performance Execution
-    Visual Style: Ghost-Neon (Dark / Blue Glow)
+    P H A N T O M  U I  L I B R A R Y | V2 PROFESSIONAL
+    --------------------------------------------------
+    ETAP 1: CORE ENGINE & VISUAL FOUNDATION
+    --------------------------------------------------
+    - Zoptymalizowana struktura pod loadstring.
+    - Centralne zarządzanie opóźnieniami (waits).
+    - Adaptacyjny system motywów Ghost-Neon.
 --]]
 
-local Phantom = {
-    Connections = {},
-    Flags = {},
-    Elements = {},
-    IsLoaded = false
-}
+local Phantom = {}
+Phantom.__index = Phantom
 
--- Services
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
-local Players = game:GetService("Players")
-
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-
---========================================================
--- GLOBAL CONFIGURATION (Zgodnie z wymaganiem: all waits here)
---========================================================
-Phantom.Config = {
+--========================================================================
+-- [1] GLOBAL CONFIGURATION (Zmieniaj tutaj wszystko)
+--========================================================================
+Phantom.Settings = {
     Waits = {
-        Init = 0.2,            -- Czas inicjalizacji biblioteki
-        WindowOpen = 0.6,      -- Czas otwierania okna
-        TabSwitch = 0.25,      -- Opóźnienie przy zmianie zakładki
-        ElementSpawn = 0.04,   -- Przerwa między ładowaniem elementów (smooth render)
-        RippleFade = 0.5,      -- Czas trwania efektu kliknięcia
-        Notification = 4.5,    -- Domyślny czas powiadomienia
-        SearchDebounce = 0.1   -- Opóźnienie wyszukiwarki
+        Initialize = 0.15,     -- Czas przed startem
+        WindowFade = 0.5,      -- Animacja otwierania okna
+        ElementFade = 0.3,     -- Pojawianie się przycisków
+        RippleSpeed = 0.45,    -- Efekt kliknięcia
+        TabSwitch = 0.2,       -- Przełączanie zakładek
     },
     Theme = {
-        Main = Color3.fromRGB(13, 13, 15),
-        Secondary = Color3.fromRGB(18, 18, 22),
-        Accent = Color3.fromRGB(0, 170, 255), -- Neon Blue z Twojej ikonki
-        AccentGradient = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 120, 255)),
-            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 210, 255))
-        }),
-        Text = Color3.fromRGB(255, 255, 255),
+        Background = Color3.fromRGB(13, 13, 15),
+        Sidebar = Color3.fromRGB(18, 18, 22),
+        Accent = Color3.fromRGB(0, 170, 255),       -- Twój Neon Blue
+        Border = Color3.fromRGB(40, 40, 45),
+        TextMain = Color3.fromRGB(255, 255, 255),
         TextMuted = Color3.fromRGB(160, 160, 165),
-        Border = Color3.fromRGB(35, 35, 40),
-        GhostGlow = Color3.fromRGB(0, 170, 255)
     },
-    Icons = {
-        Ghost = "rbxassetid://123456789" -- Tu wstawisz ID swojej ikonki
+    Assets = {
+        GhostIcon = "rbxassetid://93557513631375",  -- Twoje poprawne Image ID
+        GlowShadow = "rbxassetid://5028857084"
     }
 }
 
---========================================================
--- UTILITY ENGINE
---========================================================
+--========================================================================
+-- [2] INTERNAL UTILITIES (Silnik animacji i logiki)
+--========================================================================
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+
 local Utils = {}
 
 function Utils:Tween(obj, info, prop)
-    local tween = TweenService:Create(obj, TweenInfo.new(unpack(info)), prop)
-    tween:Play()
-    return tween
-end
-
-function Utils:Ripple(obj)
-    task.spawn(function()
-        local MousePos = Vector2.new(Mouse.X, Mouse.Y)
-        local RelativePos = MousePos - obj.AbsolutePosition
-        
-        local RippleCircle = Instance.new("Frame")
-        RippleCircle.Name = "Ripple"
-        RippleCircle.Parent = obj
-        RippleCircle.BackgroundColor3 = Color3.new(1, 1, 1)
-        RippleCircle.BackgroundTransparency = 0.8
-        RippleCircle.ZIndex = obj.ZIndex + 1
-        RippleCircle.AnchorPoint = Vector2.new(0.5, 0.5)
-        RippleCircle.Position = UDim2.new(0, RelativePos.X, 0, RelativePos.Y)
-        RippleCircle.Size = UDim2.new(0, 0, 0, 0)
-        
-        local Corner = Instance.new("UICorner")
-        Corner.CornerRadius = UDim.new(1, 0)
-        Corner.Parent = RippleCircle
-        
-        Utils:Tween(RippleCircle, {Phantom.Config.Waits.RippleFade, Enum.EasingStyle.Quart, Enum.EasingDirection.Out}, {
-            Size = UDim2.new(0, obj.AbsoluteSize.X * 1.5, 0, obj.AbsoluteSize.X * 1.5),
-            BackgroundTransparency = 1
-        })
-        
-        task.wait(Phantom.Config.Waits.RippleFade)
-        RippleCircle:Destroy()
-    end)
+    local t = TweenService:Create(obj, TweenInfo.new(unpack(info)), prop)
+    t:Play()
+    return t
 end
 
 function Utils:MakeDraggable(gui, dragPart)
     local dragging, dragInput, dragStart, startPos
-
-    local function update(input)
-        local delta = input.Position - dragStart
-        gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    end
-
     dragPart.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
@@ -107,53 +61,37 @@ function Utils:MakeDraggable(gui, dragPart)
             startPos = gui.Position
         end
     end)
-
-    dragPart.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement then
-            dragInput = input
-        end
-    end)
-
     UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            update(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+            local delta = input.Position - dragStart
+            gui.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
         end
     end)
-
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = false
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
     end)
 end
 
---========================================================
--- CORE INITIALIZATION
---========================================================
+--========================================================================
+-- [3] WINDOW CREATION (Główna konstrukcja)
+--========================================================================
 function Phantom:CreateWindow(options)
-    local WindowName = options.Name or "PHANTOM"
-    local SubName = options.SubName or "Premium Framework"
+    local Config = Phantom.Settings
+    options = options or {}
     
     local ScreenGui = Instance.new("ScreenGui")
-    ScreenGui.Name = "Phantom_" .. game:GetService("HttpService"):GenerateGUID(false)
+    ScreenGui.Name = "Phantom_" .. math.random(100, 999)
+    ScreenGui.Parent = (RunService:IsStudio() and game.Players.LocalPlayer:WaitForChild("PlayerGui") or CoreGui)
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    
-    -- Zabezpieczenie przed CoreGui
-    if RunService:IsStudio() then
-        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-    else
-        local success, err = pcall(function() ScreenGui.Parent = CoreGui end)
-        if not success then ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
-    end
 
-    -- Main Canvas
+    -- Główny Kontener
     local Main = Instance.new("Frame")
     Main.Name = "Main"
     Main.Parent = ScreenGui
-    Main.BackgroundColor3 = Phantom.Config.Theme.Main
-    Main.BorderSizePixel = 0
-    Main.Position = UDim2.new(0.5, -300, 0.5, -200)
     Main.Size = UDim2.new(0, 620, 0, 420)
+    Main.Position = UDim2.new(0.5, -310, 0.5, -210)
+    Main.BackgroundColor3 = Config.Theme.Background
+    Main.BorderSizePixel = 0
     Main.ClipsDescendants = true
 
     local MainCorner = Instance.new("UICorner")
@@ -161,119 +99,67 @@ function Phantom:CreateWindow(options)
     MainCorner.Parent = Main
 
     local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Phantom.Config.Theme.Border
-    MainStroke.Thickness = 1
+    MainStroke.Color = Config.Theme.Border
+    MainStroke.Thickness = 1.2
     MainStroke.Parent = Main
 
-    -- Glow Effect (Profesjonalne cieniowanie)
-    local Glow = Instance.new("ImageLabel")
-    Glow.Name = "Glow"
-    Glow.Parent = Main
-    Glow.BackgroundTransparency = 1
-    Glow.Position = UDim2.new(0, -15, 0, -15)
-    Glow.Size = UDim2.new(1, 30, 1, 30)
-    Glow.Image = "rbxassetid://5028857084"
-    Glow.ImageColor3 = Color3.new(0, 0, 0)
-    Glow.ImageTransparency = 0.5
-    Glow.ZIndex = 0
-
-    -- Sidebar (Lewy panel)
+    -- Pasek Boczny (Sidebar)
     local Sidebar = Instance.new("Frame")
     Sidebar.Name = "Sidebar"
     Sidebar.Parent = Main
-    Sidebar.BackgroundColor3 = Phantom.Config.Theme.Secondary
+    Sidebar.Size = UDim2.new(0, 180, 1, 0)
+    Sidebar.BackgroundColor3 = Config.Theme.Sidebar
     Sidebar.BorderSizePixel = 0
-    Sidebar.Size = UDim2.new(0, 170, 1, 0)
 
-    local SidebarCorner = Instance.new("UICorner")
-    SidebarCorner.CornerRadius = UDim.new(0, 10)
-    SidebarCorner.Parent = Sidebar
+    local SidebarLine = Instance.new("Frame")
+    SidebarLine.Size = UDim2.new(0, 1, 1, 0)
+    SidebarLine.Position = UDim2.new(1, 0, 0, 0)
+    SidebarLine.BackgroundColor3 = Config.Theme.Border
+    SidebarLine.BorderSizePixel = 0
+    SidebarLine.Parent = Sidebar
 
-    local SidebarFix = Instance.new("Frame") -- Maskowanie rogów między sidebar a resztą
-    SidebarFix.Name = "SidebarFix"
-    SidebarFix.Parent = Sidebar
-    SidebarFix.BackgroundColor3 = Phantom.Config.Theme.Secondary
-    SidebarFix.BorderSizePixel = 0
-    SidebarFix.Position = UDim2.new(1, -10, 0, 0)
-    SidebarFix.Size = UDim2.new(0, 10, 1, 0)
-
-    -- Header (Logo + Title)
+    -- Nagłówek i Twoja Ikonka
     local Header = Instance.new("Frame")
     Header.Name = "Header"
     Header.Parent = Sidebar
+    Header.Size = UDim2.new(1, 0, 0, 80)
     Header.BackgroundTransparency = 1
-    Header.Size = UDim2.new(1, 0, 0, 70)
 
     local Icon = Instance.new("ImageLabel")
     Icon.Name = "Icon"
     Icon.Parent = Header
+    Icon.Size = UDim2.new(0, 45, 0, 45)
+    Icon.Position = UDim2.new(0, 15, 0, 18)
+    Icon.Image = options.Icon or Config.Assets.GhostIcon
     Icon.BackgroundTransparency = 1
-    Icon.Position = UDim2.new(0, 15, 0, 15)
-    Icon.Size = UDim2.new(0, 40, 0, 40)
-    Icon.Image = Phantom.Config.Icons.Ghost
-    Icon.ImageColor3 = Phantom.Config.Theme.Accent
+    Icon.ScaleType = Enum.ScaleType.Fit
 
     local Title = Instance.new("TextLabel")
     Title.Name = "Title"
     Title.Parent = Header
-    Title.BackgroundTransparency = 1
-    Title.Position = UDim2.new(0, 65, 0, 15)
     Title.Size = UDim2.new(1, -70, 0, 20)
+    Title.Position = UDim2.new(0, 68, 0, 22)
+    Title.Text = options.Name or "PHANTOM"
     Title.Font = Enum.Font.GothamBold
-    Title.Text = WindowName
-    Title.TextColor3 = Phantom.Config.Theme.Text
-    Title.TextSize = 16
+    Title.TextColor3 = Config.Theme.TextMain
+    Title.TextSize = 17
     Title.TextXAlignment = Enum.TextXAlignment.Left
-
-    local SubTitle = Instance.new("TextLabel")
-    SubTitle.Name = "SubTitle"
-    SubTitle.Parent = Header
-    SubTitle.BackgroundTransparency = 1
-    SubTitle.Position = UDim2.new(0, 65, 0, 33)
-    SubTitle.Size = UDim2.new(1, -70, 0, 15)
-    SubTitle.Font = Enum.Font.GothamMedium
-    SubTitle.Text = SubName
-    SubTitle.TextColor3 = Phantom.Config.Theme.TextMuted
-    SubTitle.TextSize = 10
-    SubTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Container na zakładki
-    local TabHolder = Instance.new("ScrollingFrame")
-    TabHolder.Name = "TabHolder"
-    TabHolder.Parent = Sidebar
-    TabHolder.BackgroundTransparency = 1
-    TabHolder.BorderSizePixel = 0
-    TabHolder.Position = UDim2.new(0, 0, 0, 80)
-    TabHolder.Size = UDim2.new(1, 0, 1, -90)
-    TabHolder.ScrollBarThickness = 0
-
-    local TabList = Instance.new("UIListLayout")
-    TabList.Parent = TabHolder
-    TabList.SortOrder = Enum.SortOrder.LayoutOrder
-    TabList.Padding = UDim.new(0, 5)
-
-    local TabPadding = Instance.new("UIPadding")
-    TabPadding.Parent = TabHolder
-    TabPadding.PaddingLeft = UDim.new(0, 10)
-    TabPadding.PaddingRight = UDim.new(0, 10)
-
-    -- Content Area (Główna część z elementami)
-    local Container = Instance.new("Frame")
-    Container.Name = "Container"
-    Container.Parent = Main
-    Container.BackgroundTransparency = 1
-    Container.Position = UDim2.new(0, 170, 0, 0)
-    Container.Size = UDim2.new(1, -170, 1, 0)
+    Title.BackgroundTransparency = 1
 
     Utils:MakeDraggable(Main, Header)
 
-    -- Return Window Object
-    local Window = {
-        CurrentTab = nil,
+    -- Kontener na elementy (Prawa strona)
+    local Container = Instance.new("Frame")
+    Container.Name = "Container"
+    Container.Parent = Main
+    Container.Position = UDim2.new(0, 181, 0, 0)
+    Container.Size = UDim2.new(1, -181, 1, 0)
+    Container.BackgroundTransparency = 1
+
+    return {
+        GUI = ScreenGui,
         Tabs = {}
     }
-
-    return Window
 end
 
 return Phantom
